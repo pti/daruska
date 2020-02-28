@@ -1,0 +1,16 @@
+name: daruska
+description: Ruuvitag scanner server
+version: 0.1.0
+
+environment:
+  sdk: '>=2.7.0 <3.0.0'
+
+dependencies:
+  rxdart: ^0.23.1
+  convert: ^2.1.1
+  moor_ffi: ^0.4.0
+  args: ^1.5.2
+  logging: ^0.11.4
+
+dev_dependencies:
+  pedantic: ^1.8.0
