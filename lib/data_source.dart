@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 
+import 'package:daruska/event_source.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
@@ -12,7 +13,7 @@ import 'ruuvi_parser.dart';
 
 final _log = Logger('src');
 
-class DataSource {
+class DataSource implements SensorEventSource {
 
   static const _ignoreDuplicates = true;
 
@@ -20,10 +21,13 @@ class DataSource {
   final _latestBySensorId = HashMap<int, SensorData>();
   final _inactivityController = StreamController<Object>.broadcast();
 
+  var _nextId = 1;
+  final _realtimeSubscribers = <int>{};
   bool _disposed = false;
   MonitoringConfiguration _cfg;
   Process _process;
   StreamSubscription<Object> _inactivitySubscription;
+  StreamSubscription<String> _stdOutSubscription;
   Timer _intervaller;
   Timer _timeouter;
 
@@ -31,6 +35,9 @@ class DataSource {
 
   void dispose() {
     _disposed = true;
+
+    _stdOutSubscription?.cancel();
+    _stdOutSubscription = null;
     _intervaller?.cancel();
     _intervaller = null;
     _timeouter?.cancel();
@@ -47,7 +54,32 @@ class DataSource {
     }
   }
 
-  Stream<SensorEvent> get stream => _eventController.stream;
+  @override
+  Stream<SensorEvent> get eventStream => _eventController.stream;
+
+  @override
+  int subscribeRealtimeUpdates() {
+    final id = _nextId++;
+    _realtimeSubscribers.add(id);
+
+    if (_realtimeSubscribers.length == 1) {
+      _log.fine('start monitoring continuously');
+      _restartMonitoring();
+    }
+
+    return id;
+  }
+
+  @override
+  void unsubscribeRealtimeUpdates(int id) {
+
+    if (_realtimeSubscribers.remove(id) && _realtimeSubscribers.isEmpty) {
+      _log.fine('no more rt subscribers');
+      _stopMonitoring();
+    }
+  }
+
+  bool get _monitorContinuously => _cfg.monitorContinuously || _realtimeSubscribers.isNotEmpty;
 
   Future<void> setConfiguration(MonitoringConfiguration cfg) async {
     _cfg = cfg;
@@ -65,14 +97,14 @@ class DataSource {
 
     _latestBySensorId.clear();
 
-    if (_cfg.timeout != null) {
+    if (_cfg.timeout != null && !_monitorContinuously) {
       _timeouter = Timer(_cfg.timeout, () {
         _log.finer('timed out');
         _stopMonitoring();
       });
     }
 
-    _process.stdout
+    _stdOutSubscription = _process.stdout
         .map((chars) => String.fromCharCodes(chars))
         .map((str) => str.split('\n'))
         .expand((line) => line)

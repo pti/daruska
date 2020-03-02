@@ -11,10 +11,10 @@ class SensorData {
   /// hPa
   final double pressure;
 
-  /// V
-  final double batteryVoltage;
+  /// Battery voltage (V).
+  final double voltage;
 
-  SensorData(this.temperature, this.humidity, this.pressure, this.batteryVoltage);
+  SensorData(this.temperature, this.humidity, this.pressure, this.voltage);
 
   @override
   bool operator ==(Object other) =>
@@ -24,18 +24,52 @@ class SensorData {
           temperature == other.temperature &&
           humidity == other.humidity &&
           pressure == other.pressure &&
-          batteryVoltage == other.batteryVoltage;
+          voltage == other.voltage;
 
   @override
   int get hashCode =>
       temperature.hashCode ^
       humidity.hashCode ^
       pressure.hashCode ^
-      batteryVoltage.hashCode;
+      voltage.hashCode;
 
   @override
   String toString() {
-    return 'SensorData{temperature: $temperature\u200A°C, humidity: $humidity\u200A%, pressure: $pressure\u200AhPa, batteryVoltage: $batteryVoltage\u200AV}';
+    return 'SensorData{temperature: $temperature\u200A°C, humidity: $humidity\u200A%, pressure: $pressure\u200AhPa, voltage: $voltage\u200AV}';
+  }
+
+  Map<String, dynamic> toJson() {
+    final json = {
+      'temperature': temperature,
+      'humidity': humidity,
+      'pressure': pressure,
+      'voltage': voltage
+    };
+
+    json.removeWhere((k, v) => v == null);
+    return json;
+  }
+
+  bool isSame(SensorData other, Set<SensorField> fields) {
+    return (!fields.contains(SensorField.temperature) || temperature == other.temperature)
+        && (!fields.contains(SensorField.humidity) || humidity == other.humidity)
+        && (!fields.contains(SensorField.pressure) || pressure == other.pressure)
+        && (!fields.contains(SensorField.voltage) || voltage == other.voltage);
+  }
+
+  SensorData withFields(Set<SensorField> fields) {
+
+    if (fields.isEmpty || fields.length == SensorField.values.length) {
+      return this;
+
+    } else {
+      return SensorData(
+        fields.contains(SensorField.temperature) ? temperature : null,
+        fields.contains(SensorField.humidity) ? humidity : null,
+        fields.contains(SensorField.pressure) ? pressure : null,
+        fields.contains(SensorField.voltage) ? voltage : null,
+      );
+    }
   }
 }
 
@@ -46,4 +80,30 @@ class SensorEvent {
   final SensorData data;
 
   SensorEvent(this.sensorId, this.timestamp, this.data);
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sensorId': sensorId,
+      'timestamp': timestamp.toIso8601String(),
+      'data': data.toJson(),
+    };
+  }
+}
+
+enum SensorField {
+  temperature,
+  humidity,
+  pressure,
+  voltage
+}
+
+List<String> _sensorFieldNames;
+
+extension SensorFieldString on String {
+
+  SensorField toSensorField() {
+    _sensorFieldNames ??= SensorField.values.map((v) => v.toString().split('.').last).toList(growable: false);
+    final index = _sensorFieldNames.indexOf(this);
+    return index == -1 ? null : SensorField.values[index];
+  }
 }

@@ -18,13 +18,13 @@ class EventLogger {
           '${e.data.temperature.toStringAsFixed(2)}\u200A°C '
           '${e.data.humidity.toStringAsFixed(2)}\u200A% '
           '${e.data.pressure.toStringAsFixed(2)}\u200AhPa '
-          '${e.data.batteryVoltage.toStringAsFixed(2)}\u200AV'
+          '${e.data.voltage.toStringAsFixed(2)}\u200AV'
       ));
     }
   }
 
-  void dispose() {
-    _subscription?.cancel();
+  Future<void> dispose() async {
+    await _subscription?.cancel();
     _subscription = null;
   }
 }

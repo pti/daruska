@@ -22,8 +22,8 @@ class Collector {
         .listen(null);
   }
 
-  void dispose() {
-    _streamSubscription?.cancel();
+  Future<void> dispose() async{
+    await _streamSubscription?.cancel();
     _streamSubscription = null;
   }
 
@@ -66,7 +66,7 @@ class _SensorStats {
     ok |= _temperature.add(data.temperature);
     ok |= _humidity.add(data.humidity);
     ok |= _pressure.add(data.pressure);
-    ok |= _batteryVoltage.add(data.batteryVoltage);
+    ok |= _batteryVoltage.add(data.voltage);
 
     if (ok) {
       _measurements += 1;

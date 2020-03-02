@@ -38,8 +38,8 @@ class Persister {
     });
   }
 
-  void dispose() {
-    _eventSubscription?.cancel();
+  Future<void> dispose() async {
+    await _eventSubscription?.cancel();
     _eventSubscription = null;
     _insertStatement?.close();
     _insertStatement = null;
@@ -98,6 +98,6 @@ List _eventArguments(SensorEvent event) {
     d.temperature == null ? null : (d.temperature * 200).round(),
     d.humidity == null ? null : (d.humidity * 400).round(),
     d.pressure == null ? null : (d.pressure * 100 - 50000).round(),
-    d.batteryVoltage == null ? null : (d.batteryVoltage * 1000).round()
+    d.voltage == null ? null : (d.voltage * 1000).round()
   ];
 }
