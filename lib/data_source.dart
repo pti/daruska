@@ -2,13 +2,14 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 
-import 'package:daruska/event_source.dart';
+import 'package:convert/convert.dart';
+import 'package:daruska/sources.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:convert/convert.dart';
 
 import 'data.dart';
+import 'extensions.dart';
 import 'ruuvi_parser.dart';
 
 final _log = Logger('src');
@@ -92,7 +93,7 @@ class DataSource implements SensorEventSource {
     _intervaller?.cancel();
     _intervaller = null;
 
-    _log.finer('start monitoring (interval=${_cfg.interval.inSeconds}s, timeout=${_cfg.timeout.inSeconds}s)');
+    _log.finer('start monitoring (interval=${_cfg.interval.inSeconds}s, timeout=${_cfg.timeout.inSeconds}s, devices=${_cfg.sensorIds.map((sid) => sid.toMacString()).join(', ')})');
     _process = await Process.start(_cfg.command.first, _cfg.command.sublist(1));
 
     _latestBySensorId.clear();
@@ -110,7 +111,26 @@ class DataSource implements SensorEventSource {
         .expand((line) => line)
         .listen(_handleLine);
 
-    if (_cfg.inactivityTimeout != null && _cfg.monitorContinuously) {
+    void onProcessEnded() {
+
+      if (_monitorContinuously) {
+        _restartMonitoring();
+      } else {
+        _stopMonitoring();
+      }
+    }
+
+    _stdOutSubscription.onError((err) {
+      _log.severe('process error', err);
+      onProcessEnded();
+    });
+
+    _stdOutSubscription.onDone(() {
+      _log.fine('process done');
+      onProcessEnded();
+    });
+
+    if (_cfg.inactivityTimeout != null && _monitorContinuously) {
       _inactivitySubscription = _inactivityController.stream
           .debounceTime(_cfg.inactivityTimeout)
           .listen((_) => _restartMonitoring());
@@ -138,10 +158,13 @@ class DataSource implements SensorEventSource {
     _inactivitySubscription?.cancel();
     _inactivitySubscription = null;
 
+    _stdOutSubscription?.cancel();
+    _stdOutSubscription = null;
+
     _process?.kill();
     _process = null;
 
-    if (!_cfg.monitorContinuously && !_disposed) {
+    if (!_monitorContinuously && !_disposed) {
       _intervaller = Timer(_cfg.interval, () {
         _log.finer('interval elapsed');
         _startMonitoring();
@@ -177,7 +200,7 @@ class DataSource implements SensorEventSource {
       _eventController.add(SensorEvent(sensorId, DateTime.now(), data));
     }
 
-    if (!_cfg.monitorContinuously && _cfg.all && _latestBySensorId.length == _cfg.sensorIds.length) {
+    if (!_monitorContinuously && _cfg.all && _latestBySensorId.length == _cfg.sensorIds.length) {
       _stopMonitoring();
     }
   }
@@ -206,29 +229,45 @@ class MonitoringConfiguration {
   final Duration timeout;
   final Set<int> sensorIds;
   final Duration inactivityTimeout;
+  final bool useActive;
 
   MonitoringConfiguration({
     @required this.command,
     this.interval = Duration.zero,
     this.all = false,
     this.timeout = const Duration(seconds: 10),
-    Set<String> sensorIds = const {},
-    this.inactivityTimeout = const Duration(seconds: 30)
+    this.sensorIds = const {},
+    this.inactivityTimeout = const Duration(seconds: 30),
+    this.useActive = false
   }):
-      sensorIds = sensorIds?.map(_parseSensorId)?.toSet() ?? {},
       assert(command != null && command.isNotEmpty),
       assert(interval != null),
       assert(timeout != null),
       assert(inactivityTimeout != null),
       assert(all != null),
-      assert(all == false || sensorIds?.isNotEmpty == true);
+      assert(sensorIds != null),
+      assert(useActive != null),
+      assert(all == false || sensorIds.isNotEmpty);
 
   bool get monitorContinuously => interval == null || interval.inMilliseconds == 0;
-}
 
-int _parseSensorId(String id) {
-  return id
-      .split(':')
-      .map((b) => int.parse(b, radix: 16))
-      .reduce((a, b) => (a << 8) | b);
+  MonitoringConfiguration copyWith({
+    List<String> command,
+    Duration interval,
+    bool all,
+    Duration timeout,
+    Set<int> sensorIds,
+    Duration inactivityTimeout,
+    bool useActive})
+  {
+    return MonitoringConfiguration(
+      command: command ?? this.command,
+      interval: interval ?? this.interval,
+      all: all ?? this.all,
+      timeout: timeout ?? this.timeout,
+      sensorIds: sensorIds ?? this.sensorIds,
+      inactivityTimeout: inactivityTimeout ?? this.inactivityTimeout,
+      useActive: useActive ?? this.useActive
+    );
+  }
 }

@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:rxdart/rxdart.dart';
 import 'package:daruska/data.dart';
-import 'package:daruska/event_source.dart';
 import 'package:daruska/server.dart';
+import 'package:daruska/sources.dart';
 import 'package:logging/logging.dart';
+import 'package:rxdart/rxdart.dart';
 
 class WebSocketHandler {
 

@@ -2,6 +2,8 @@ import 'package:args/args.dart';
 import 'package:daruska/data_source.dart';
 import 'package:logging/logging.dart';
 
+import 'extensions.dart';
+
 class Settings {
 
   final MonitoringConfiguration monitoringConfiguration;
@@ -20,6 +22,7 @@ Settings parseArguments(List<String> args) {
     ..addOption('interval', defaultsTo: '60', abbr: 'i', help: 'Number of seconds between active scan periods')
     ..addOption('timeout', defaultsTo: '10', abbr: 't', help: 'Defines the maximum number of seconds to keep the scanner active')
     ..addMultiOption('devices', abbr: 'd', help: 'List of device MAC addresses to scan for, e.g. AA:BB:CC:11:22:33')
+    ..addFlag('use_saved', abbr: 'u', defaultsTo: false, help: 'Only scan the active devices defined in the database')
     ..addOption('frequency', defaultsTo: '600', abbr: 'f', help: 'Defines how often to store collected data to database (in seconds)')
     ..addOption('loglevel', abbr: 'l', defaultsTo: 'severe', help: 'Log level', allowed: Level.LEVELS.map((l) => l.name.toLowerCase()))
   ;
@@ -38,8 +41,9 @@ Settings parseArguments(List<String> args) {
           command: res.getString('command').split(' '),
           interval: Duration(seconds: res.getInt('interval')),
           timeout: Duration(seconds: res.getInt('timeout')),
-          sensorIds: devices,
+          sensorIds: devices?.map((str) => str.parseSensorId())?.toSet() ?? {},
           all: devices.isNotEmpty,
+          useActive: res.getBool('use_saved'),
         ),
         Duration(seconds: res.getInt('frequency')),
         res.getString('loglevel').toLevel(),

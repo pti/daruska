@@ -1,40 +1,56 @@
 import 'dart:async';
 
 import 'package:daruska/data.dart';
+import 'package:daruska/extensions.dart';
+import 'package:daruska/sources.dart';
 import 'package:logging/logging.dart';
-
 import 'package:moor_ffi/database.dart';
 
 final _log = Logger('db');
+const _dbVersion = 1;
 
-class Persister {
+class Persister implements SensorInfoSource {
 
   Database _db;
   PreparedStatement _insertStatement;
   StreamSubscription _eventSubscription;
+  var _sensorInfos = <int, SensorInfo>{};
 
   Persister(Stream<List<SensorEvent>> collectStream) {
     _db = Database.open('events.db');
 
-    try {
-//    _db.execute(_createSensorTable);
+    if (_db.userVersion() != _dbVersion) {
+      // TODO alter if schema changes.
+      _db.execute(_createSensorTable);
       _db.execute(_createEventTable);
-    } catch (err) {
-      // TODO how should 'already created' be handled? _db.userVersion() + set?
+      _db.setUserVersion(_dbVersion);
     }
+
+    _sensorInfos = _readSensorInfos(_db);
 
     _insertStatement = _db.prepare(_insertEvent);
 
     _eventSubscription = collectStream.listen((data) {
-      _log.finer('start saving');
-      _db.execute('BEGIN TRANSACTION');
 
-      for (final event in data) {
-        _insertStatement.execute(_eventArguments(event));
+      try {
+        _log.finer('start saving');
+        _db.execute('BEGIN TRANSACTION');
+
+        for (final event in data) {
+          _insertStatement.execute(_eventArguments(event));
+
+          if (!_sensorInfos.containsKey(event.sensorId)) {
+            _log.fine('new sensor ${event.sensorId.toMacString()}');
+            addSensor(SensorInfo(event.sensorId, '', true));
+          }
+        }
+
+        _db.execute('END TRANSACTION');
+        _log.finer('done saving');
+
+      } catch (e) {
+        _log.severe('error saving', e);
       }
-
-      _db.execute('END TRANSACTION');
-      _log.finer('done saving');
     });
   }
 
@@ -46,14 +62,34 @@ class Persister {
     _db?.close();
     _db = null;
   }
+
+  @override
+  void saveSensorInfo(SensorInfo info) {
+    _db.execute('UPDATE sensor SET name = "${info.name}", active = ${info.active._toInt()} WHERE id = ${info.sensorId}');
+    _sensorInfos[info.sensorId] = info;
+  }
+
+  void addSensor(SensorInfo info) {
+    _db.execute('INSERT INTO sensor VALUES (${info.sensorId}, "${info.name}", ${info.active._toInt()})');
+    _sensorInfos[info.sensorId] = info;
+  }
+
+  @override
+  SensorInfo getSensorInfo(int sensorId) {
+    return _sensorInfos[sensorId];
+  }
+
+  @override
+  Iterable<SensorInfo> getAllSensorInfos() => _sensorInfos.values;
 }
 
-//const _createSensorTable = r'''
-//CREATE TABLE sensor (
-//  id INTEGER NOT NULL PRIMARY KEY,
-//  name TEXT
-//);
-//''';
+const _createSensorTable = r'''
+CREATE TABLE sensor (
+  id INTEGER NOT NULL PRIMARY KEY,
+  name TEXT,
+  active INTEGER
+);
+''';
 
 const _createEventTable = r'''
 CREATE TABLE event (
@@ -63,10 +99,10 @@ CREATE TABLE event (
   temperature INTEGER,
   humidity INTEGER,
   pressure INTEGER,
-  voltage INTEGER
+  voltage INTEGER,
+  FOREIGN KEY (sensor_id) REFERENCES sensor (id)
 );  
 ''';
-//FOREIGN KEY (sensor_id) REFERENCES sensor (id)
 
 // timestamp is seconds since epoch
 // temperature -> C * 5/1000 (0.005 accuracy)
@@ -100,4 +136,28 @@ List _eventArguments(SensorEvent event) {
     d.pressure == null ? null : (d.pressure * 100 - 50000).round(),
     d.voltage == null ? null : (d.voltage * 1000).round()
   ];
+}
+
+Map<int, SensorInfo> _readSensorInfos(Database db) {
+  final infos = <int, SensorInfo>{};
+  PreparedStatement statement;
+
+  try {
+    statement = db.prepare('SELECT id, name, active FROM sensor');
+    final result = statement.select();
+
+    for (final row in result) {
+      final sensorId = row['id'] as int;
+      infos[sensorId] = SensorInfo(sensorId, row['name'], row['active'] == 1);
+    }
+
+  } finally {
+    statement?.close();
+  }
+
+  return infos;
+}
+
+extension on bool {
+  int _toInt() => this ? 1 : 0;
 }

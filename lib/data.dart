@@ -107,3 +107,32 @@ extension SensorFieldString on String {
     return index == -1 ? null : SensorField.values[index];
   }
 }
+
+class SensorInfo {
+
+  final int sensorId;
+  final String name;
+  final bool active;
+
+  SensorInfo(this.sensorId, this.name, this.active);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SensorInfo &&
+          runtimeType == other.runtimeType &&
+          sensorId == other.sensorId &&
+          active == other.active &&
+          name == other.name;
+
+  @override
+  int get hashCode => sensorId.hashCode;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sensorId': sensorId,
+      'name': name,
+      'active': active,
+    };
+  }
+}

@@ -10,3 +10,19 @@ abstract class SensorEventSource {
 
   void unsubscribeRealtimeUpdates(int id);
 }
+
+abstract class SensorInfoSource {
+
+  SensorInfo getSensorInfo(int sensorId);
+
+  Iterable<SensorInfo> getAllSensorInfos();
+
+  void saveSensorInfo(SensorInfo info);
+}
+
+abstract class LatestEventsSource {
+
+  SensorEvent latestForSensor(int sensorId);
+
+  List<SensorEvent> latestEvents();
+}

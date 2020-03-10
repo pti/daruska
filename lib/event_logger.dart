@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:daruska/data.dart';
 import 'package:logging/logging.dart';
 
+import 'extensions.dart';
+
 class EventLogger {
 
   static const _level = Level.FINE;
@@ -26,20 +28,5 @@ class EventLogger {
   Future<void> dispose() async {
     await _subscription?.cancel();
     _subscription = null;
-  }
-}
-
-extension on int {
-
-  String toMacString() {
-    final src = toRadixString(16).toUpperCase().padLeft(12, '0');
-    final sb = StringBuffer();
-
-    for (var i = 0; i < 12; i += 2) {
-      sb.write(src.substring(i, i + 2));
-      if (i < 10) sb.write(':');
-    }
-
-    return sb.toString();
   }
 }

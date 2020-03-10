@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'data.dart';
 
 const ruuviManufacturerId = 0x0499;
