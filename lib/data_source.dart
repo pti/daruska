@@ -161,7 +161,7 @@ class DataSource implements SensorEventSource {
     _stdOutSubscription?.cancel();
     _stdOutSubscription = null;
 
-    _process?.kill();
+    _process?.kill(ProcessSignal.sigint);
     _process = null;
 
     if (!_monitorContinuously && !_disposed) {
