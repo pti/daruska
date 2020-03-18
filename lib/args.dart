@@ -39,7 +39,7 @@ Settings parseArguments(List<String> args) {
   try {
     final res = parser.parse(args);
 
-    if (res['help']) {
+    if (res['help'] != null) {
       parser.printHelp();
       return null;
     }
