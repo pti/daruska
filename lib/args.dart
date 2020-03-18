@@ -29,10 +29,16 @@ Settings parseArguments(List<String> args) {
     ..addOption('frequency', defaultsTo: '10', abbr: 'f', help: 'Defines how often to store collected data to database (in minutes)')
     ..addOption('loglevel', abbr: 'l', defaultsTo: 'severe', help: 'Log level', allowed: Level.LEVELS.map((l) => l.name.toLowerCase()))
     ..addOption('archive_after', abbr: 'a', defaultsTo: '366', help: 'Archive events older than the specified number of days')
+    ..addOption('help', abbr: 'h')
   ;
 
   try {
     final res = parser.parse(args);
+
+    if (res['help']) {
+      parser.printHelp();
+      return null;
+    }
 
     if (res['command'] == null) {
       throw FormatException('Missing cmd option');
@@ -62,8 +68,7 @@ Settings parseArguments(List<String> args) {
       print(e);
     }
 
-    print('');
-    print(parser.usage);
+    parser.printHelp();
     return null;
   }
 }
@@ -77,4 +82,10 @@ extension on ArgResults {
 
 extension on String {
   Level toLevel() => Level.LEVELS.firstWhere((l) => this == l.name.toLowerCase());
+}
+
+extension on ArgParser {
+  void printHelp() {
+    print('\n$usage\n');
+  }
 }
