@@ -35,7 +35,11 @@ to only scan for those.
 Additionally you might want to compile daruska (faster startup, smaller memory footprint): `dart2native -o daruska lib/main.dart`.
 
 ### Database
-daruska can write sensor events to database in three different intervals: 10 minutes, 1 hour and 1 day.
-A separate table is used for each of these in order to keep the queries fast enough.
+daruska can write sensor events to database in three different intervals/frequencies: 10 minutes, 1 hour and 1 day.
+The smallest of the intervals can be configured with the `--frequency` option (number of minutes).
+A negative frequency option can be used to disable database writes, and value 0 to disable the smallest interval collector.
+Each collector listens for the scanned data and writes average values every N timeunits.
+
+A separate table is used for each interval in order to keep the queries fast enough.
 Events in the smallest interval table are kept for 1 year (option `--archive_after`).
 Archiving is done only when daruska is started. Currently the archive table isn't used for anything other than writes.
