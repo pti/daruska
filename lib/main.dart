@@ -28,9 +28,11 @@ void main(List<String> args) async {
   final latest = _LatestEventsCollector(src.eventStream);
 
   final persister = Persister();
-  final archiveLimit = DateTime.now().subtract(Duration(days: 366)).truncate(DateTimeComponent.day);
-  persister.archive(archiveLimit);
-  persister.vacuum();
+
+  if (settings.archiveAfter != null && settings.archiveAfter > Duration.zero) {
+    persister.archive(DateTime.now().subtract(settings.archiveAfter).truncate(DateTimeComponent.day));
+    persister.vacuum();
+  }
 
   final collectors = _setupCollectors(persister, settings, src);
 

@@ -8,9 +8,10 @@ class Settings {
 
   final MonitoringConfiguration monitoringConfiguration;
   final Duration collectFrequency;
+  final Duration archiveAfter;
   final Level logLevel;
 
-  Settings(this.monitoringConfiguration, this.collectFrequency, this.logLevel):
+  Settings(this.monitoringConfiguration, this.collectFrequency, this.archiveAfter, this.logLevel):
         assert(monitoringConfiguration != null),
         assert(logLevel != null);
 }
@@ -27,6 +28,7 @@ Settings parseArguments(List<String> args) {
     ..addFlag('use_saved', abbr: 'u', defaultsTo: false, help: 'Only scan the active devices defined in the database')
     ..addOption('frequency', defaultsTo: '10', abbr: 'f', help: 'Defines how often to store collected data to database (in minutes)')
     ..addOption('loglevel', abbr: 'l', defaultsTo: 'severe', help: 'Log level', allowed: Level.LEVELS.map((l) => l.name.toLowerCase()))
+    ..addOption('archive_after', abbr: 'a', defaultsTo: '366', help: 'Archive events older than the specified number of days')
   ;
 
   try {
@@ -48,6 +50,7 @@ Settings parseArguments(List<String> args) {
           useActive: res.getBool('use_saved'),
         ),
         Duration(minutes: res.getInt('frequency')),
+        Duration(days: res.getInt('archive_after')),
         res.getString('loglevel').toLevel(),
     );
 
