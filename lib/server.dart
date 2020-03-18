@@ -21,8 +21,7 @@ class Server {
   StreamSubscription<HttpRequest> _reqSubscription;
   final _reqMatchers = <_RequestMatcher>[];
 
-  Server(this.src, this.latest, this.infos, {String address, int port}):
-        _port = port ?? 21800,
+  Server(this.src, this.latest, this.infos, this._port, {String address}):
         _address = address == null ? InternetAddress.loopbackIPv4 : InternetAddress(address)
   {
     _register(method: 'GET', pathPattern: '/api/events/latest', handler: _getLatestEvents);

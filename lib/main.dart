@@ -38,7 +38,7 @@ void main(List<String> args) async {
     log.info('db writes disabled');
   }
 
-  final server = Server(src, latest, persister);
+  final server = Server(src, latest, persister, settings.port, address: settings.serverAddress);
   await server.start();
 
   var moc = settings.monitoringConfiguration;

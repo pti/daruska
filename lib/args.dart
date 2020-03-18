@@ -10,8 +10,10 @@ class Settings {
   final Duration collectFrequency;
   final Duration archiveAfter;
   final Level logLevel;
+  final int port;
+  final String serverAddress;
 
-  Settings(this.monitoringConfiguration, this.collectFrequency, this.archiveAfter, this.logLevel):
+  Settings(this.monitoringConfiguration, this.collectFrequency, this.archiveAfter, this.port, this.serverAddress, this.logLevel):
         assert(monitoringConfiguration != null),
         assert(logLevel != null);
 }
@@ -29,6 +31,8 @@ Settings parseArguments(List<String> args) {
     ..addOption('frequency', defaultsTo: '10', abbr: 'f', help: 'Defines how often to store collected data to database (in minutes)')
     ..addOption('loglevel', abbr: 'l', defaultsTo: 'severe', help: 'Log level', allowed: Level.LEVELS.map((l) => l.name.toLowerCase()))
     ..addOption('archive_after', abbr: 'a', defaultsTo: '366', help: 'Archive events older than the specified number of days')
+    ..addOption('port', abbr: 'p', defaultsTo: '21800', help: 'HTTP server port to bind to')
+    ..addOption('addr', help: 'HTTP server IP-address or hostname to bind to (defaults to 127.0.0.1)')
     ..addOption('help', abbr: 'h')
   ;
 
@@ -57,6 +61,8 @@ Settings parseArguments(List<String> args) {
         ),
         Duration(minutes: res.getInt('frequency')),
         Duration(days: res.getInt('archive_after')),
+        res.getInt('port'),
+        res.getString('addr'),
         res.getString('loglevel').toLevel(),
     );
 
