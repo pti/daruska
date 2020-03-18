@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 
-import 'package:async/async.dart';
 import 'package:daruska/args.dart';
 import 'package:daruska/data.dart';
 import 'package:daruska/event_logger.dart';
@@ -57,7 +55,6 @@ void main(List<String> args) async {
   await src.setConfiguration(moc);
 
   final _ = MergeStream([
-    ProcessSignal.sighup.watch(),
     ProcessSignal.sigint.watch(),
     ProcessSignal.sigterm.watch()
 
@@ -114,7 +111,7 @@ List<Collector> _setupCollectors(Persister persister, Settings settings, DataSou
   streams.add(collectStream1d);
   collectors.add(collector1d);
 
-  persister.setStream(StreamGroup.merge(streams));
+  persister.setStream(MergeStream(streams));
 
   return collectors;
 }
