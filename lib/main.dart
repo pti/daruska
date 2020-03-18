@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
+import 'package:async/async.dart';
 import 'package:daruska/args.dart';
 import 'package:daruska/data.dart';
 import 'package:daruska/event_logger.dart';
+import 'package:daruska/extensions.dart';
 import 'package:daruska/persister.dart';
 import 'package:daruska/server.dart';
 import 'package:daruska/sources.dart';
@@ -21,15 +24,40 @@ void main(List<String> args) async {
   final log = Logger('main');
 
   final src = DataSource();
+  final logger = EventLogger(src.eventStream);
   final latest = _LatestEventsCollector(src.eventStream);
 
-  final collector = Collector(src.eventStream);
-  final collectStream = Stream
-      .periodic(settings.collectFrequency)
-      .map((_) => collector.collect());
+  final persister = Persister();
+  final archiveLimit = DateTime.now().subtract(Duration(days: 366)).truncate(DateTimeComponent.day);
+  persister.archive(archiveLimit);
+  persister.vacuum();
 
-  final persister = Persister(collectStream);
-  final logger = EventLogger(src.eventStream);
+  final collectorMin = Collector([], src.eventStream);
+  final collectStreamMin = Stream
+      .periodic(settings.collectFrequency)
+      .map((_) => CollectEvent(Table.eventMin, collectorMin.collect()));
+
+  final hourStart = DateTime.now().truncate(DateTimeComponent.hour);
+  final eventsSinceHourStart = persister.getSensorEvents(orderBy: 'timestamp', from: hourStart);
+  final collector1h = Collector(eventsSinceHourStart, src.eventStream);
+  final collectStream1h = ExtraStream
+      .every(DateTimeComponent.hour)
+      .map((_) => CollectEvent(Table.event1h, collector1h.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.hour))));
+
+  final dayStart = DateTime.now().truncate(DateTimeComponent.day);
+  final eventsSinceDayStart = persister.getSensorEvents(orderBy: 'timestamp', from: dayStart);
+  final collector1d = Collector(eventsSinceDayStart, src.eventStream);
+  final collectStream1d = ExtraStream
+      .every(DateTimeComponent.day)
+      .map((_) => CollectEvent(Table.event1d, collector1d.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.hour))));
+
+  final collectStreams = StreamGroup.merge([
+    collectStreamMin,
+    collectStream1h,
+    collectStream1d
+  ]);
+
+  persister.setStream(collectStreams);
 
   final server = Server(src, latest, persister);
   await server.start();
@@ -57,7 +85,9 @@ void main(List<String> args) async {
     await latest.dispose();
     await logger.dispose();
     await persister.dispose();
-    await collector.dispose();
+    await collectorMin.dispose();
+    await collector1h.dispose();
+    await collector1d.dispose();
     await src.dispose();
     await server.dispose();
     log.finest('disposed all components');
@@ -66,7 +96,6 @@ void main(List<String> args) async {
 
 void _setupLogger(Level logLevel) {
   Logger.root.level = logLevel;
-  Logger.root.level = Level.FINEST;
   Logger.root.onRecord.listen((rec) {
     final err = rec.error;
 
