@@ -10,7 +10,9 @@ class Settings {
   final Duration collectFrequency;
   final Level logLevel;
 
-  Settings(this.monitoringConfiguration, this.collectFrequency, this.logLevel);
+  Settings(this.monitoringConfiguration, this.collectFrequency, this.logLevel):
+        assert(monitoringConfiguration != null),
+        assert(logLevel != null);
 }
 
 /// Returns null if provided arguments were not valid. If that is the case instructions will be
@@ -23,7 +25,7 @@ Settings parseArguments(List<String> args) {
     ..addOption('timeout', defaultsTo: '10', abbr: 't', help: 'Defines the maximum number of seconds to keep the scanner active')
     ..addMultiOption('devices', abbr: 'd', help: 'List of device MAC addresses to scan for, e.g. AA:BB:CC:11:22:33')
     ..addFlag('use_saved', abbr: 'u', defaultsTo: false, help: 'Only scan the active devices defined in the database')
-    ..addOption('frequency', defaultsTo: '600', abbr: 'f', help: 'Defines how often to store collected data to database (in seconds)')
+    ..addOption('frequency', defaultsTo: '10', abbr: 'f', help: 'Defines how often to store collected data to database (in minutes)')
     ..addOption('loglevel', abbr: 'l', defaultsTo: 'severe', help: 'Log level', allowed: Level.LEVELS.map((l) => l.name.toLowerCase()))
   ;
 
@@ -45,7 +47,7 @@ Settings parseArguments(List<String> args) {
           all: devices.isNotEmpty,
           useActive: res.getBool('use_saved'),
         ),
-        Duration(seconds: res.getInt('frequency')),
+        Duration(minutes: res.getInt('frequency')),
         res.getString('loglevel').toLevel(),
     );
 

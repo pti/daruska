@@ -61,6 +61,8 @@ class Persister implements SensorInfoSource {
   void setStream(Stream<CollectEvent> collectStream) {
 
     _eventSubscription = collectStream?.listen((event) {
+      if (event.data.isEmpty) return;
+
       _log.finer('start saving');
 
       try {

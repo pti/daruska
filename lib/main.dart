@@ -32,32 +32,11 @@ void main(List<String> args) async {
   persister.archive(archiveLimit);
   persister.vacuum();
 
-  final collectorMin = Collector([], src.eventStream);
-  final collectStreamMin = Stream
-      .periodic(settings.collectFrequency)
-      .map((_) => CollectEvent(Table.eventMin, collectorMin.collect()));
+  final collectors = _setupCollectors(persister, settings, src);
 
-  final hourStart = DateTime.now().truncate(DateTimeComponent.hour);
-  final eventsSinceHourStart = persister.getSensorEvents(orderBy: 'timestamp', from: hourStart);
-  final collector1h = Collector(eventsSinceHourStart, src.eventStream);
-  final collectStream1h = ExtraStream
-      .every(DateTimeComponent.hour)
-      .map((_) => CollectEvent(Table.event1h, collector1h.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.hour))));
-
-  final dayStart = DateTime.now().truncate(DateTimeComponent.day);
-  final eventsSinceDayStart = persister.getSensorEvents(orderBy: 'timestamp', from: dayStart);
-  final collector1d = Collector(eventsSinceDayStart, src.eventStream);
-  final collectStream1d = ExtraStream
-      .every(DateTimeComponent.day)
-      .map((_) => CollectEvent(Table.event1d, collector1d.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.hour))));
-
-  final collectStreams = StreamGroup.merge([
-    collectStreamMin,
-    collectStream1h,
-    collectStream1d
-  ]);
-
-  persister.setStream(collectStreams);
+  if (collectors.isEmpty) {
+    log.info('db writes disabled');
+  }
 
   final server = Server(src, latest, persister);
   await server.start();
@@ -85,13 +64,57 @@ void main(List<String> args) async {
     await latest.dispose();
     await logger.dispose();
     await persister.dispose();
-    await collectorMin.dispose();
-    await collector1h.dispose();
-    await collector1d.dispose();
+    collectors.forEach((c) async => await c.dispose());
     await src.dispose();
     await server.dispose();
     log.finest('disposed all components');
   });
+}
+
+List<Collector> _setupCollectors(Persister persister, Settings settings, DataSource src) {
+  final minFreq = settings.collectFrequency.inMinutes;
+
+  if (minFreq.isNegative) {
+    return [];
+  }
+
+  final collectors = <Collector>[];
+  final streams = <Stream<CollectEvent>>[];
+
+  if (minFreq > 0 && minFreq < 30) {
+    final collectorMin = Collector([], src.eventStream);
+    final collectStreamMin = ExtraStream
+        // To make the timestamps nice and even do the collection every <frequency> minutes :)
+        .dynamicInterval(() {
+          final now = DateTime.now().roundTime(DateTimeComponent.minute);
+          return now.add(Duration(minutes: minFreq - (now.minute % minFreq))).until;
+        })
+        .map((_) => CollectEvent(Table.eventMin, collectorMin.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.minute))));
+    streams.add(collectStreamMin);
+    collectors.add(collectorMin);
+  }
+
+  final hourStart = DateTime.now().truncate(DateTimeComponent.hour);
+  final eventsSinceHourStart = persister.getSensorEvents(orderBy: 'timestamp', from: hourStart);
+  final collector1h = Collector(eventsSinceHourStart, src.eventStream);
+  final collectStream1h = ExtraStream
+      .every(DateTimeComponent.hour)
+      .map((_) => CollectEvent(Table.event1h, collector1h.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.hour))));
+  streams.add(collectStream1h);
+  collectors.add(collector1h);
+
+  final dayStart = DateTime.now().truncate(DateTimeComponent.day);
+  final eventsSinceDayStart = persister.getSensorEvents(orderBy: 'timestamp', from: dayStart);
+  final collector1d = Collector(eventsSinceDayStart, src.eventStream);
+  final collectStream1d = ExtraStream
+      .every(DateTimeComponent.day)
+      .map((_) => CollectEvent(Table.event1d, collector1d.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.hour))));
+  streams.add(collectStream1d);
+  collectors.add(collector1d);
+
+  persister.setStream(StreamGroup.merge(streams));
+
+  return collectors;
 }
 
 void _setupLogger(Level logLevel) {
