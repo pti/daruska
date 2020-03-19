@@ -11,10 +11,10 @@ final _log = Logger('db');
 const _dbVersion = 1;
 
 class CollectEvent {
-  final Table table;
+  final Accuracy accuracy;
   final List<CollectData> data;
 
-  CollectEvent(this.table, this.data);
+  CollectEvent(this.accuracy, this.data);
 }
 
 /// Takes care of writing sensor data to a database and provides functions for reading
@@ -68,16 +68,16 @@ class Persister implements SensorInfoSource {
       try {
         var statement;
 
-        switch (event.table) {
-          case Table.eventMin:
+        switch (event.accuracy) {
+          case Accuracy.min:
             statement = _insertMinStatement;
             break;
 
-          case Table.event1h:
+          case Accuracy.hour:
             statement = _insert1hStatement;
             break;
 
-          case Table.event1d:
+          case Accuracy.day:
             statement = _insert1dStatement;
             break;
         }
@@ -85,7 +85,7 @@ class Persister implements SensorInfoSource {
         _db.execute('BEGIN TRANSACTION');
 
         for (final collectData in event.data) {
-          statement.execute(_eventArguments(collectData, event.table != Table.eventMin));
+          statement.execute(_eventArguments(collectData, event.accuracy != Accuracy.min));
 
           if (!_sensorInfos.containsKey(collectData.sensorId)) {
             _log.fine('new sensor ${collectData.sensorId.toMacString()}');
@@ -159,28 +159,28 @@ class Persister implements SensorInfoSource {
   }
 
   @override
-  List<SensorEvent> getSensorEvents({Table table = Table.eventMin,
+  List<SensorEvent> getSensorEvents({Accuracy accuracy = Accuracy.min,
     Frequency frequency = Frequency.min, Aggregate aggregate = Aggregate.avg,
     List<int> sensorIds, DateTime from, DateTime to, String orderBy, int offset, int limit})
   {
     assert(frequency != null);
-    assert(table != null);
+    assert(accuracy != null);
     assert(aggregate != null);
 
     var timeConverter = (value) => DateTime.fromMillisecondsSinceEpoch(value * 1000);
     var groupSpec = 'sensor_id, timestamp';
     var tableName;
 
-    switch (table) {
-      case Table.event1d:
+    switch (accuracy) {
+      case Accuracy.day:
         tableName = 'event_1d';
         break;
 
-      case Table.event1h:
+      case Accuracy.hour:
         tableName = 'event_1h';
         break;
 
-      case Table.eventMin:
+      case Accuracy.min:
       default:
         tableName = 'event';
         break;
@@ -209,7 +209,7 @@ class Persister implements SensorInfoSource {
     var selectFields = ['temperature', 'humidity', 'pressure', 'voltage'];
     // Order of the fields has a dependency to _readEvent.
 
-    if (table != Table.eventMin) {
+    if (accuracy != Accuracy.min) {
       final af = _aggregateFunctionNames[(aggregate ?? Aggregate.avg).index].toLowerCase();
       selectFields = selectFields.map((f) => f == 'voltage' ? f : '${f}_$af').toList();
     }

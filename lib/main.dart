@@ -88,7 +88,7 @@ List<Collector> _setupCollectors(Persister persister, Settings settings, DataSou
           final now = DateTime.now().roundTime(DateTimeComponent.minute);
           return now.add(Duration(minutes: minFreq - (now.minute % minFreq))).until;
         })
-        .map((_) => CollectEvent(Table.eventMin, collectorMin.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.minute))));
+        .map((_) => CollectEvent(Accuracy.min, collectorMin.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.minute))));
     streams.add(collectStreamMin);
     collectors.add(collectorMin);
   }
@@ -98,7 +98,7 @@ List<Collector> _setupCollectors(Persister persister, Settings settings, DataSou
   final collector1h = Collector(eventsSinceHourStart, src.eventStream);
   final collectStream1h = ExtraStream
       .every(DateTimeComponent.hour)
-      .map((_) => CollectEvent(Table.event1h, collector1h.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.hour))));
+      .map((_) => CollectEvent(Accuracy.hour, collector1h.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.hour))));
   streams.add(collectStream1h);
   collectors.add(collector1h);
 
@@ -107,7 +107,7 @@ List<Collector> _setupCollectors(Persister persister, Settings settings, DataSou
   final collector1d = Collector(eventsSinceDayStart, src.eventStream);
   final collectStream1d = ExtraStream
       .every(DateTimeComponent.day)
-      .map((_) => CollectEvent(Table.event1d, collector1d.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.hour))));
+      .map((_) => CollectEvent(Accuracy.day, collector1d.collect(timestamp: DateTime.now().roundTime(DateTimeComponent.hour))));
   streams.add(collectStream1d);
   collectors.add(collector1d);
 

@@ -19,7 +19,7 @@ abstract class SensorInfoSource {
 
   void saveSensorInfo(SensorInfo info);
 
-  List<SensorEvent> getSensorEvents({Table table = Table.eventMin,
+  List<SensorEvent> getSensorEvents({Accuracy accuracy = Accuracy.min,
     Frequency frequency = Frequency.min, Aggregate aggregate = Aggregate.avg,
     List<int> sensorIds, DateTime from, DateTime to, String orderBy, int offset, int limit});
 }
@@ -31,10 +31,10 @@ abstract class LatestEventsSource {
   List<SensorEvent> latestEvents();
 }
 
-enum Table {
-  eventMin,
-  event1h,
-  event1d,
+enum Accuracy {
+  min,
+  hour,
+  day,
 }
 
 enum Frequency {
