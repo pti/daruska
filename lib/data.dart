@@ -85,7 +85,7 @@ class SensorEvent {
   Map<String, dynamic> toJson() {
     return {
       'sensorId': sensorId,
-      'timestamp': timestamp.toIso8601String(),
+      'timestamp': timestamp.toTimestampString(),
       'data': data.toJson(),
     };
   }

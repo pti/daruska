@@ -39,6 +39,12 @@ extension ExtraDateTime on DateTime {
       (accuracy >= DateTimeComponent.second ? second : 0) + (accuracy == DateTimeComponent.second ? (millisecond / 1000.0).round() : 0),
     );
   }
+
+  String toTimestampString() {
+    final str = toUtc().toIso8601String();
+    final lastDot = str.lastIndexOf('.');
+    return str.substring(0, lastDot) + 'Z';
+  }
 }
 
 enum DateTimeComponent {
