@@ -201,7 +201,8 @@ class Server {
       aggregate: qp['aggregate']?.toAggregate() ?? Aggregate.avg,
       from: _parseTimestamp(qp['from']),
       to: _parseTimestamp(qp['to']),
-      orderBy: qp['order'],
+      orderBy: qp['sort'],
+      descending: qp['order'] == 'desc',
       offset: _parseInt(qp['offset'], min: 0),
       limit: _parseInt(qp['limit'], min: 1, max: 1000),
     );

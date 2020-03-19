@@ -21,7 +21,8 @@ abstract class SensorInfoSource {
 
   List<SensorEvent> getSensorEvents({Accuracy accuracy = Accuracy.min,
     Frequency frequency = Frequency.min, Aggregate aggregate = Aggregate.avg,
-    List<int> sensorIds, DateTime from, DateTime to, String orderBy, int offset, int limit});
+    List<int> sensorIds, DateTime from, DateTime to, String orderBy, bool descending,
+    int offset, int limit});
 }
 
 abstract class LatestEventsSource {

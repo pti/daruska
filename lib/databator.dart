@@ -161,13 +161,14 @@ class Databator implements SensorInfoSource {
   @override
   List<SensorEvent> getSensorEvents({Accuracy accuracy = Accuracy.min,
     Frequency frequency = Frequency.min, Aggregate aggregate = Aggregate.avg,
-    List<int> sensorIds, DateTime from, DateTime to, String orderBy, int offset, int limit})
+    List<int> sensorIds, DateTime from, DateTime to, String orderBy, bool descending,
+    int offset, int limit})
   {
     assert(frequency != null);
     assert(accuracy != null);
     assert(aggregate != null);
 
-    _log.finest('acc=$accuracy freq=$frequency agg=$aggregate sids=$sensorIds from=$from to=$to oby=$orderBy off=$offset lim=$limit');
+    _log.finest('acc=$accuracy freq=$frequency agg=$aggregate sids=$sensorIds from=$from to=$to oby=$orderBy desc=$descending off=$offset lim=$limit');
 
     var timeConverter = (value) => DateTime.fromMillisecondsSinceEpoch(value * 1000);
     String groupSpec;
@@ -247,6 +248,10 @@ class Databator implements SensorInfoSource {
     if (orderBy != null) {
       assert(validOrderBys.contains(orderBy), 'Not a valid orderBy: $orderBy');
       query.write(' ORDER BY $orderBy');
+
+      if (descending == true) {
+        query.write(' DESC');
+      }
     }
 
     if (limit != null) {
