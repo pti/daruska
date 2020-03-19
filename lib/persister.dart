@@ -346,10 +346,10 @@ SensorEvent _readEvent(Row row, _TimeConverter timeConverter) {
       row.columnAt(0),
       timeConverter(row.columnAt(1)),
       SensorData(
-        row.columnAt(2) * 0.005,
-        row.columnAt(3) * 0.0025,
+        ((row.columnAt(2) * 0.005) as double)._limitPrecision(),
+        ((row.columnAt(3) * 0.0025) as double)._limitPrecision(),
         (row.columnAt(4) + 50000) / 100,
-        row.columnAt(5) * 0.001,
+        ((row.columnAt(5) * 0.001) as double)._limitPrecision(),
       )
   );
 }
@@ -425,4 +425,5 @@ extension on double {
   int _toDbHumidity() => (this * 400).round();
   int _toDbPressure() => ((this * 100) - 50000).round();
   int _toDbVoltage() => (this * 1000).round();
+  double _limitPrecision() => (this * 100.0).round() / 100.0;
 }
