@@ -109,7 +109,7 @@ class _StatsCollector {
   double _lastValue;
   double min;
   double max;
-  DateTime _last;
+  DateTime _tLast;
   DateTime _t0;
 
   _StatsCollector() {
@@ -133,15 +133,15 @@ class _StatsCollector {
     _t0 ??= timestamp;
     _updateSum(timestamp);
     _lastValue = value;
-    _last = timestamp;
+    _tLast = timestamp;
     return true;
   }
 
   void _updateSum(DateTime to) {
 
     if (_lastValue != null) {
-      _sum += _lastValue * to.difference(_last).inMilliseconds;
-      _last = to;
+      _sum += _lastValue * to.difference(_tLast).inMilliseconds;
+      _tLast = to;
     }
   }
 
@@ -157,10 +157,10 @@ class _StatsCollector {
   }
 
   void reset() {
-    _last = null;
     _t0 = null;
     _sum = 0.0;
     _lastValue = null;
+    _tLast = null;
     min = null;
     max = null;
   }
