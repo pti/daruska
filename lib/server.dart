@@ -85,7 +85,9 @@ class Server {
   }
 
   Future<void> _getLatestEvents(HttpRequest req, Match pathMatch) async {
-    final json = latest.latestEvents().map((e) => e.toJson()).toList(growable: false);
+    final json = latest.latestEvents()
+        .map(_toJsonWithSensorName)
+        .toList(growable: false);
     await req.response.sendJson(json);
   }
 
@@ -182,7 +184,7 @@ class Server {
 
   Future<void> _queryEvents(HttpRequest req, Match pathMatch) async {
     final events = _listEvents(req);
-    await req.response.sendJson(events.map((event) => event.toJson()).toList(growable: false));
+    await req.response.sendJson(events.map(_toJsonWithSensorName).toList(growable: false));
   }
 
   List<SensorEvent> _listEvents(HttpRequest req) {
@@ -220,7 +222,7 @@ class Server {
         ?.toSet();
     _log.finest('include fields: $includeFields');
 
-    final dpcs = _asDataPointCollections(events, includeFields);
+    final dpcs = _asDataPointCollections(events, infos, includeFields);
     await req.response.sendJson(dpcs.map((dpc) => dpc.toJson()).toList());
   }
 
@@ -265,6 +267,12 @@ class Server {
       _log.severe('invalid timestamp string "$value"');
       throw RequestException(HttpStatus.badRequest, 'invalid_timestamp');
     }
+  }
+
+  Map<String, dynamic> _toJsonWithSensorName(SensorEvent event) {
+    final json = event.toJson();
+    json['sensorName'] = infos.getSensorInfo(event.sensorId)?.name;
+    return json;
   }
 }
 
@@ -331,13 +339,14 @@ class _RequestMatcher {
 class _DataPointCollection {
 
   final int sensorId;
+  final String sensorName;
   final List<double> temperature = [];
   final List<double> humidity = [];
   final List<double> pressure = [];
   final List<double> voltage = [];
   final List<DateTime> timestamps = [];
 
-  _DataPointCollection(this.sensorId);
+  _DataPointCollection(this.sensorId, this.sensorName);
 
   void add(int includeFieldsMask, SensorEvent event) {
     timestamps.add(event.timestamp);
@@ -362,6 +371,7 @@ class _DataPointCollection {
   Map<String, dynamic> toJson() {
     return {
       'sensorId': sensorId,
+      'sensorName': sensorName,
       'timestamps': timestamps.map((ts) => ts.secondsSinceEpoch).toList(growable: false),
       'temperature': temperature,
       'humidity': humidity,
@@ -371,12 +381,12 @@ class _DataPointCollection {
   }
 }
 
-List<_DataPointCollection> _asDataPointCollections(List<SensorEvent> events, Set<SensorField> includeFields) {
+List<_DataPointCollection> _asDataPointCollections(List<SensorEvent> events, SensorInfoSource infos, Set<SensorField> includeFields) {
   final collections = <int, _DataPointCollection>{};
   final includeMask = includeFields?._asIncludeMask();
 
   for (final event in events) {
-    (collections[event.sensorId] ??= _DataPointCollection(event.sensorId)).add(includeMask, event);
+    (collections[event.sensorId] ??= _DataPointCollection(event.sensorId, infos.getSensorInfo(event.sensorId)?.name)).add(includeMask, event);
   }
 
   return collections.values.toList(growable: false);
