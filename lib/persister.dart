@@ -167,8 +167,11 @@ class Persister implements SensorInfoSource {
     assert(accuracy != null);
     assert(aggregate != null);
 
+    _log.finest('acc=$accuracy freq=$frequency agg=$aggregate sids=$sensorIds from=$from to=$to oby=$orderBy off=$offset lim=$limit');
+
     var timeConverter = (value) => DateTime.fromMillisecondsSinceEpoch(value * 1000);
-    var groupSpec = 'sensor_id, timestamp';
+    String groupSpec;
+    var selectA = 'sensor_id, timestamp';
     var tableName;
 
     switch (accuracy) {
@@ -189,23 +192,27 @@ class Persister implements SensorInfoSource {
     switch (frequency) {
       case Frequency.daily:
         groupSpec = 'sensor_id, date(timestamp, "unixepoch", "localtime")';
+        selectA = groupSpec;
         timeConverter = (value) => DateTime.parse(value);
         break;
 
       case Frequency.hourly:
         groupSpec = 'sensor_id, strftime("%Y-%m-%d %H", datetime(timestamp, "unixepoch", "localtime"))';
+        selectA = groupSpec;
         timeConverter = (value) => DateTime.parse(value);
         break;
 
       case Frequency.weekly:
         // Seems that the year-changing-week can be included twice in the result. Shouldn't matter that much though.
+        groupSpec = 'sensor_id, strftime("%Y-%W", datetime(timestamp, "unixepoch", "localtime"))';
+        break;
+
       case Frequency.min:
       default:
         timeConverter = (value) => DateTime.fromMillisecondsSinceEpoch(value * 1000);
         break;
     }
 
-    var selectA = groupSpec ?? 'sensor_id, timestamp';
     var selectFields = ['temperature', 'humidity', 'pressure', 'voltage'];
     // Order of the fields has a dependency to _readEvent.
 

@@ -8,9 +8,12 @@ import 'package:daruska/web_socket_handler.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 
+import 'extensions.dart';
+
+final _log = Logger('server');
+
 class Server {
 
-  final _log = Logger('server');
   final int _port;
   final dynamic _address;
   final SensorEventSource src;
@@ -25,7 +28,9 @@ class Server {
         _address = address == null ? InternetAddress.loopbackIPv4 : InternetAddress(address)
   {
     _register(method: 'GET', pathPattern: '/api/events/latest', handler: _getLatestEvents);
+    _register(method: 'GET', pathPattern: '/api/events', handler: _queryEvents);
     _register(method: 'GET', pathPattern: '/api/sensor/all', handler: _getAllSensorInfos);
+    _register(method: 'GET', pathPattern: '/api/datapoints', handler: _getDataPoints);
     _register(method: 'GET', pathPattern: '/ws/monitor', handler: _handleStartMonitoring);
     _register(method: 'GET', pathPattern: RegExp(r'^/api/events/([a-fA-F0-9]{1,12})/latest'), handler: _getLatestForSensor);
     _register(method: 'PUT', pathPattern: RegExp(r'^/api/sensor/([a-fA-F0-9]{1,12})/info'), handler: _saveSensor);
@@ -48,6 +53,11 @@ class Server {
   }
 
   void _register({@required String method, @required Pattern pathPattern, @required _RequestHandler handler}) {
+
+    if (pathPattern is String) {
+      pathPattern = RegExp('^$pathPattern\$');
+    }
+
     _reqMatchers.add(_RequestMatcher(method, pathPattern, handler));
   }
 
@@ -89,6 +99,11 @@ class Server {
     final info = _getSensorInfo(sensorId);
 
     final event = latest.latestForSensor(sensorId);
+
+    if (event == null) {
+      throw RequestException(HttpStatus.notFound, 'event_not_found');
+    }
+
     final json = event.toJson();
     json['name'] = info.name;
 
@@ -145,7 +160,7 @@ class Server {
 
   int _readSensorId(Match pathMatch) {
     final idStr = pathMatch.group(1);
-    final sensorId = int.tryParse(idStr, radix: 16);
+    final sensorId = _parseSensorId(idStr);
 
     if (sensorId == null) {
       _log.severe('not a valid sensorId: $sensorId');
@@ -165,6 +180,49 @@ class Server {
     return info;
   }
 
+  Future<void> _queryEvents(HttpRequest req, Match pathMatch) async {
+    final events = _listEvents(req);
+    await req.response.sendJson(events.map((event) => event.toJson()).toList(growable: false));
+  }
+
+  List<SensorEvent> _listEvents(HttpRequest req) {
+    final qp = req.uri.queryParameters;
+
+    final ids = qp['sensors']
+        ?.split(',')
+        ?.map(_parseSensorId)
+        ?.where((sid) => sid != null)
+        ?.toList(growable: false);
+
+    return infos.getSensorEvents(
+      sensorIds: ids,
+      accuracy: qp['accuracy']?.toAccuracy() ?? Accuracy.min,
+      frequency: qp['frequency']?.toFrequency() ?? Frequency.min,
+      aggregate: qp['aggregate']?.toAggregate() ?? Aggregate.avg,
+      from: _parseTimestamp(qp['from']),
+      to: _parseTimestamp(qp['to']),
+      orderBy: qp['order'],
+      offset: _parseInt(qp['offset'], min: 0),
+      limit: _parseInt(qp['limit'], min: 1, max: 1000),
+    );
+  }
+
+  /// Responds with a list with an object per sensor. Each object lists the requested
+  /// fields in separate arrays (that only contain the field specific values).
+  Future<void> _getDataPoints(HttpRequest req, Match pathMatch) async {
+    final events = _listEvents(req);
+
+    final includeFields = req.uri.queryParameters['fields']
+        ?.split(',')
+        ?.map((fstr) => fstr.toSensorField())
+        ?.where((sf) => sf != null)
+        ?.toSet();
+    _log.finest('include fields: $includeFields');
+
+    final dpcs = _asDataPointCollections(events, includeFields);
+    await req.response.sendJson(dpcs.map((dpc) => dpc.toJson()).toList());
+  }
+
   Future<void> _handleError(HttpRequest req, dynamic err) async {
     var message = 'Oops';
     var status = HttpStatus.internalServerError;
@@ -179,6 +237,33 @@ class Server {
     }
 
     await req.response.sendMessage(status: status, message: message);
+  }
+
+  static int _parseSensorId(String value) {
+    if (value == null) return null;
+    return int.tryParse(value, radix: 16);
+  }
+
+  static int _parseInt(String value, {int min, int max}) {
+    if (value == null) return null;
+    final res = int.tryParse(value);
+    if (res == null) throw RequestException(HttpStatus.badRequest, 'invalid_integer');
+    if (min != null && res < min) throw RequestException(HttpStatus.badRequest, 'invalid_integer');
+    if (max != null && res > max) throw RequestException(HttpStatus.badRequest, 'invalid_integer');
+    return res;
+  }
+
+  /// Timestamp should be in ISO8601 format. See DateTime.parse() for more details.
+  static DateTime _parseTimestamp(String value) {
+    if (value == null) return null;
+
+    try {
+      return DateTime.parse(value);
+
+    } on FormatException {
+      _log.severe('invalid timestamp string "$value"');
+      throw RequestException(HttpStatus.badRequest, 'invalid_timestamp');
+    }
   }
 }
 
@@ -206,6 +291,24 @@ extension on HttpResponse {
   }
 }
 
+extension _XAccuracy on Accuracy {
+  static final Map<String, Accuracy> _valueByName = Accuracy.values.toNameMap();
+}
+
+extension _XFrequency on Frequency {
+  static final Map<String, Frequency> _valueByName = Frequency.values.toNameMap();
+}
+
+extension _XAggregate on Aggregate {
+  static final Map<String, Aggregate> _valueByName = Aggregate.values.toNameMap();
+}
+
+extension _XString on String {
+  Accuracy toAccuracy() => _XAccuracy._valueByName[this];
+  Frequency toFrequency() => _XFrequency._valueByName[this];
+  Aggregate toAggregate() => _XAggregate._valueByName[this];
+}
+
 class RequestException extends HttpException {
 
   final int status;
@@ -221,4 +324,67 @@ class _RequestMatcher {
   final _RequestHandler handler;
 
   _RequestMatcher(this.method, this.pathPattern, this.handler);
+}
+
+/// Value arrays can contain nulls.
+class _DataPointCollection {
+
+  final int sensorId;
+  final List<double> temperature = [];
+  final List<double> humidity = [];
+  final List<double> pressure = [];
+  final List<double> voltage = [];
+  final List<DateTime> timestamps = [];
+
+  _DataPointCollection(this.sensorId);
+
+  void add(int includeFieldsMask, SensorEvent event) {
+    timestamps.add(event.timestamp);
+
+    if (includeFieldsMask?.isIncluded(SensorField.temperature) ?? true) {
+      temperature.add(event.data.temperature);
+    }
+
+    if (includeFieldsMask?.isIncluded(SensorField.humidity) ?? true) {
+      humidity.add(event.data.humidity);
+    }
+
+    if (includeFieldsMask?.isIncluded(SensorField.pressure) ?? true) {
+      pressure.add(event.data.pressure);
+    }
+
+    if (includeFieldsMask?.isIncluded(SensorField.voltage) ?? true) {
+      voltage.add(event.data.voltage);
+    }
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sensorId': sensorId,
+      'timestamps': timestamps.map((ts) => ts.secondsSinceEpoch).toList(growable: false),
+      'temperature': temperature,
+      'humidity': humidity,
+      'pressure': pressure,
+      'voltage': voltage,
+    };
+  }
+}
+
+List<_DataPointCollection> _asDataPointCollections(List<SensorEvent> events, Set<SensorField> includeFields) {
+  final collections = <int, _DataPointCollection>{};
+  final includeMask = includeFields?._asIncludeMask();
+
+  for (final event in events) {
+    (collections[event.sensorId] ??= _DataPointCollection(event.sensorId)).add(includeMask, event);
+  }
+
+  return collections.values.toList(growable: false);
+}
+
+extension _XSensorFieldSet on Set<SensorField> {
+  int _asIncludeMask() => isEmpty ? 0 : map((f) => 1 << f.index).reduce((a, b) => a | b); // + isIncluded -> :)
+}
+
+extension _XInt on int {
+  bool isIncluded(SensorField field) => this & (1 << field.index) > 0;
 }

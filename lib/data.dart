@@ -1,3 +1,4 @@
+import 'extensions.dart';
 
 /// Any of the fields may be null (sensor reading was invalid or information wasn't available).
 class SensorData {
@@ -97,15 +98,12 @@ enum SensorField {
   voltage
 }
 
-List<String> _sensorFieldNames;
+extension XSensorField on SensorField {
+  static final Map<String, SensorField> _valueByName = SensorField.values.toNameMap();
+}
 
 extension SensorFieldString on String {
-
-  SensorField toSensorField() {
-    _sensorFieldNames ??= SensorField.values.map((v) => v.toString().split('.').last).toList(growable: false);
-    final index = _sensorFieldNames.indexOf(this);
-    return index == -1 ? null : SensorField.values[index];
-  }
+  SensorField toSensorField() => XSensorField._valueByName[this];
 }
 
 class SensorInfo {

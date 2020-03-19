@@ -113,3 +113,13 @@ extension ExtraStream on Stream {
     return ExtraStream.dynamicInterval(() => DateTime.now().nextStart(accuracy).until, computation);
   }
 }
+
+extension ExtraList<T> on List<T> {
+
+  Map<String, T> toNameMap() => Map.fromEntries(map((value) {
+    final str = value.toString();
+    final lastDot = str.lastIndexOf('.');
+    final name = lastDot == -1 ? str : str.substring(lastDot + 1);
+    return MapEntry(name, value);
+  }));
+}
