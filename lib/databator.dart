@@ -29,7 +29,7 @@ class CollectEvent {
 /// For the minimum frequency table 'event' is used and 1 year worth of data is kept in that
 /// table before moving data older than a year to 'event_archive' table. Data in tables 'event_1h'
 /// and 'event_1d' are never archived.
-class Persister implements SensorInfoSource {
+class Databator implements SensorInfoSource {
 
   Database _db;
   PreparedStatement _insertMinStatement;
@@ -38,7 +38,7 @@ class Persister implements SensorInfoSource {
   StreamSubscription _eventSubscription;
   var _sensorInfos = <int, SensorInfo>{};
 
-  Persister() {
+  Databator() {
     _db = Database.open('events.db');
 
     if (_db.userVersion() != _dbVersion) {

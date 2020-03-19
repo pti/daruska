@@ -5,7 +5,7 @@ import 'package:daruska/args.dart';
 import 'package:daruska/data.dart';
 import 'package:daruska/event_logger.dart';
 import 'package:daruska/extensions.dart';
-import 'package:daruska/persister.dart';
+import 'package:daruska/databator.dart';
 import 'package:daruska/server.dart';
 import 'package:daruska/sources.dart';
 import 'package:logging/logging.dart';
@@ -25,26 +25,26 @@ void main(List<String> args) async {
   final logger = EventLogger(src.eventStream);
   final latest = _LatestEventsCollector(src.eventStream);
 
-  final persister = Persister();
+  final db = Databator();
 
   if (settings.archiveAfter != null && settings.archiveAfter > Duration.zero) {
-    persister.archive(DateTime.now().subtract(settings.archiveAfter).truncate(DateTimeComponent.day));
-    persister.vacuum();
+    db.archive(DateTime.now().subtract(settings.archiveAfter).truncate(DateTimeComponent.day));
+    db.vacuum();
   }
 
-  final collectors = _setupCollectors(persister, settings, src);
+  final collectors = _setupCollectors(db, settings, src);
 
   if (collectors.isEmpty) {
     log.info('db writes disabled');
   }
 
-  final server = Server(src, latest, persister, settings.port, address: settings.serverAddress);
+  final server = Server(src, latest, db, settings.port, address: settings.serverAddress);
   await server.start();
 
   var moc = settings.monitoringConfiguration;
 
   if (moc.useActive) {
-    final activeIds = persister
+    final activeIds = db
         .getAllSensorInfos()
         .where((info) => info.active)
         .map((info) => info.sensorId)
@@ -62,7 +62,7 @@ void main(List<String> args) async {
     log.fine('handle signal $signal');
     await latest.dispose();
     await logger.dispose();
-    await persister.dispose();
+    await db.dispose();
     collectors.forEach((c) async => await c.dispose());
     await src.dispose();
     await server.dispose();
@@ -70,7 +70,7 @@ void main(List<String> args) async {
   });
 }
 
-List<Collector> _setupCollectors(Persister persister, Settings settings, DataSource src) {
+List<Collector> _setupCollectors(Databator db, Settings settings, DataSource src) {
   final minFreq = settings.collectFrequency.inMinutes;
 
   if (minFreq.isNegative) {
@@ -94,7 +94,7 @@ List<Collector> _setupCollectors(Persister persister, Settings settings, DataSou
   }
 
   final hourStart = DateTime.now().truncate(DateTimeComponent.hour);
-  final eventsSinceHourStart = persister.getSensorEvents(orderBy: 'timestamp', from: hourStart);
+  final eventsSinceHourStart = db.getSensorEvents(orderBy: 'timestamp', from: hourStart);
   final collector1h = Collector(eventsSinceHourStart, src.eventStream);
   final collectStream1h = ExtraStream
       .every(DateTimeComponent.hour)
@@ -103,7 +103,7 @@ List<Collector> _setupCollectors(Persister persister, Settings settings, DataSou
   collectors.add(collector1h);
 
   final dayStart = DateTime.now().truncate(DateTimeComponent.day);
-  final eventsSinceDayStart = persister.getSensorEvents(orderBy: 'timestamp', from: dayStart);
+  final eventsSinceDayStart = db.getSensorEvents(orderBy: 'timestamp', from: dayStart);
   final collector1d = Collector(eventsSinceDayStart, src.eventStream);
   final collectStream1d = ExtraStream
       .every(DateTimeComponent.day)
@@ -111,7 +111,7 @@ List<Collector> _setupCollectors(Persister persister, Settings settings, DataSou
   streams.add(collectStream1d);
   collectors.add(collector1d);
 
-  persister.setStream(MergeStream(streams));
+  db.setStream(MergeStream(streams));
 
   return collectors;
 }
