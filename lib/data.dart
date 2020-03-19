@@ -84,7 +84,8 @@ class SensorEvent {
 
   Map<String, dynamic> toJson() {
     return {
-      'sensorId': sensorId,
+      // Use the same format as is used in API endpoint paths.
+      'sensorId': sensorId.toMacString(separated: false),
       'timestamp': timestamp.toTimestampString(),
       'data': data.toJson(),
     };
@@ -128,7 +129,7 @@ class SensorInfo {
 
   Map<String, dynamic> toJson() {
     return {
-      'sensorId': sensorId,
+      'sensorId': sensorId.toMacString(separated: false),
       'name': name,
       'active': active,
     };

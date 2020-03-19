@@ -370,7 +370,7 @@ class _DataPointCollection {
 
   Map<String, dynamic> toJson() {
     return {
-      'sensorId': sensorId,
+      'sensorId': sensorId.toMacString(separated: false),
       'sensorName': sensorName,
       'timestamps': timestamps.map((ts) => ts.secondsSinceEpoch).toList(growable: false),
       'temperature': temperature,

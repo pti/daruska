@@ -65,13 +65,13 @@ extension on DateTimeComponent {
 
 extension ExtraInt on int {
 
-  String toMacString() {
+  String toMacString({bool separated = true}) {
     final src = toRadixString(16).toUpperCase().padLeft(12, '0');
     final sb = StringBuffer();
 
     for (var i = 0; i < 12; i += 2) {
       sb.write(src.substring(i, i + 2));
-      if (i < 10) sb.write(':');
+      if (separated && i < 10) sb.write(':');
     }
 
     return sb.toString();
