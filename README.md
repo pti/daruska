@@ -10,8 +10,8 @@ daruska
 daruska relies on an external process to read advertisement data from BLE devices.
 The process needs to output scanned data one line at a time in the following format:
 `<Device address> <Advertisement data in hex>`. For example `12:34:56:78:9A:CB 9904037f073cbd5effc3fff804130b89`.
-And naturally only data in the (format used by RuuviTags)[https://github.com/ruuvi/ruuvi-sensor-protocols] is supported.
-For example (blepp_scan)[https://github.com/pti/blepp_scan] can be used.
+And naturally only data in the [format used by RuuviTags](https://github.com/ruuvi/ruuvi-sensor-protocols) is supported.
+For example [blepp_scan](https://github.com/pti/blepp_scan) can be used.
 The command to start the process can be defined with the `--command` option, e.g. `-c /path/to/blepp_scan -m 0x0499`.
 
 By default RuuviTags are scanned in 60 second intervals (option `--interval`). 
@@ -25,10 +25,10 @@ database already lists all the relevant devices, specify the `--use_saved` optio
 to only scan for those.
 
 ### Usage
-- Install (Dart SDK)[https://dart.dev/get-dart] - *Note* that at the moment on ARMv7 one must use a development version of the SDK (2.8.0) because dart:ffi isn't support on 2.7.0.
+- Install [Dart SDK](https://dart.dev/get-dart) - *Note* that at the moment on ARMv7 one must use a development version of the SDK (2.8.0) because dart:ffi isn't support on 2.7.0.
 - Clone this repository and change to the clone directory.
 - Run `pub get` to fetch the dependencies.
-- Acquire (blepp_scan)[https://github.com/pti/blepp_scan] or a similar command line tool.
+- Acquire [blepp_scan](https://github.com/pti/blepp_scan) or a similar command line tool.
 - The database will be created in the working directory.
 - Start the process with `dart lib/main.dart -c /path/to/blepp_scan -m 0x0499` (+ any other option you need to specify).
 
