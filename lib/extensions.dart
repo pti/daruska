@@ -1,3 +1,4 @@
+import 'dart:async';
 
 extension ExtraDateTime on DateTime {
 
@@ -90,29 +91,44 @@ extension ExtraString on String {
 extension ExtraStream on Stream {
 
   /// [delay] is used to calculate the delay to the next event. Return null to end the stream.
-  static Stream<T> dynamicInterval<T>(Duration Function() delay, [T Function(int) computation]) async* {
+  static Stream<T> dynamicInterval<T>(Duration Function() delay, [T Function(int) computation]) {
+    StreamController<T> controller;
+    Timer timer;
     var i = 0;
 
-    while (true) {
-      final d = delay();
-
-      if (d == null) {
-        break;
-      }
-
-      await Future.delayed(d);
-
-      var data;
-
-      if (computation != null) {
-        data = computation(i);
-      } else {
-        data = i;
-      }
-
-      yield data;
+    void sendEvent() {
+      var data = computation == null ? null : computation(i);
       i++;
+      controller?.add(data);
     }
+
+    void startTimer() {
+      timer = Timer(delay(), () {
+        sendEvent();
+        startTimer();
+      });
+    }
+
+    controller = StreamController<T>(
+      onListen: () {
+        startTimer();
+      },
+      onPause: () {
+        timer?.cancel();
+        timer = null;
+      },
+      onResume: () {
+        assert(timer == null);
+        startTimer();
+      },
+      onCancel: () {
+        timer?.cancel();
+        timer = null;
+        return null;
+      },
+    );
+
+    return controller.stream;
   }
 
   static Stream<T> every<T>(DateTimeComponent accuracy, [T Function(int) computation]) {
