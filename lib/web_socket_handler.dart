@@ -96,7 +96,7 @@ class MonitoringParameters {
 
           return field;
         })
-        ?.toSet() ?? [];
+        ?.toSet() ?? {};
 
     return MonitoringParameters(
       sensorId: req.uri.queryParameters['sensorId']?.parseSensorId(),
