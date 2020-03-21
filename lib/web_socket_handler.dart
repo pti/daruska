@@ -8,6 +8,8 @@ import 'package:daruska/sources.dart';
 import 'package:logging/logging.dart';
 import 'package:rxdart/rxdart.dart';
 
+import 'extensions.dart';
+
 class WebSocketHandler {
 
   final _log = Logger('ws');
@@ -83,8 +85,9 @@ class MonitoringParameters {
 
   static MonitoringParameters fromRequest(HttpRequest req) {
 
-    final fields = (req.uri.queryParametersAll['fields'] ?? [])
-        .map((fstr) {
+    final fields = req.uri.queryParameters['fields']
+        ?.split(',')
+        ?.map((fstr) {
           final field = fstr.toSensorField();
 
           if (field == null) {
@@ -93,10 +96,10 @@ class MonitoringParameters {
 
           return field;
         })
-        .toSet();
+        ?.toSet() ?? [];
 
     return MonitoringParameters(
-      sensorId: int.parse(req.uri.queryParameters['sensorId']),
+      sensorId: req.uri.queryParameters['sensorId']?.parseSensorId(),
       fields: fields,
       sample: req.uri.queryParameters['sample']?.parseSeconds()
     );

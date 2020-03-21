@@ -251,8 +251,8 @@ class Server {
     if (value == null) return null;
     final res = int.tryParse(value);
     if (res == null) throw RequestException(HttpStatus.badRequest, 'invalid_integer');
-    if (min != null && res < min) throw RequestException(HttpStatus.badRequest, 'invalid_integer');
-    if (max != null && res > max) throw RequestException(HttpStatus.badRequest, 'invalid_integer');
+    if (min != null && res < min) throw RequestException(HttpStatus.badRequest, 'out_of_bounds');
+    if (max != null && res > max) throw RequestException(HttpStatus.badRequest, 'out_of_bounds');
     return res;
   }
 

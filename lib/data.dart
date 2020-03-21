@@ -52,10 +52,15 @@ class SensorData {
   }
 
   bool isSame(SensorData other, Set<SensorField> fields) {
-    return (!fields.contains(SensorField.temperature) || temperature == other.temperature)
-        && (!fields.contains(SensorField.humidity) || humidity == other.humidity)
-        && (!fields.contains(SensorField.pressure) || pressure == other.pressure)
-        && (!fields.contains(SensorField.voltage) || voltage == other.voltage);
+
+    if (fields.isEmpty) {
+      return other == this;
+    } else {
+      return (!fields.contains(SensorField.temperature) || temperature == other.temperature)
+          && (!fields.contains(SensorField.humidity) || humidity == other.humidity)
+          && (!fields.contains(SensorField.pressure) || pressure == other.pressure)
+          && (!fields.contains(SensorField.voltage) || voltage == other.voltage);
+    }
   }
 
   SensorData withFields(Set<SensorField> fields) {
