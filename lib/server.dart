@@ -23,6 +23,7 @@ class Server {
   HttpServer _server;
   StreamSubscription<HttpRequest> _reqSubscription;
   final _reqMatchers = <_RequestMatcher>[];
+  final _validNamePattern = RegExp(r'^[\p{Letter}0-9-_. ]{0,32}$', unicode: true);
 
   Server(this.src, this.latest, this.infos, this._port, {String address}):
         _address = address == null ? InternetAddress.loopbackIPv4 : InternetAddress(address)
@@ -137,11 +138,7 @@ class Server {
       throw RequestException(HttpStatus.badRequest, 'invalid_info');
     }
 
-    if (name != null && !(name is String)) {
-      throw RequestException(HttpStatus.badRequest, 'invalid_name');
-    }
-
-    if ((name?.length ?? 0) > 32) {
+    if (name != null && (!(name is String) || _validNamePattern.hasMatch(name))) {
       throw RequestException(HttpStatus.badRequest, 'invalid_name');
     }
 
@@ -203,7 +200,7 @@ class Server {
       aggregate: qp['aggregate']?.toAggregate() ?? Aggregate.avg,
       from: _parseTimestamp(qp['from']),
       to: _parseTimestamp(qp['to']),
-      orderBy: qp['sort'],
+      orderBy: qp['sort']?.toOrderBy(),
       descending: qp['order'] == 'desc',
       offset: _parseInt(qp['offset'], min: 0),
       limit: _parseInt(qp['limit'], min: 1, max: 1000),
@@ -312,10 +309,15 @@ extension _XAggregate on Aggregate {
   static final Map<String, Aggregate> _valueByName = Aggregate.values.toNameMap();
 }
 
+extension _XOrderBy on OrderBy {
+  static final Map<String, OrderBy> _valueByName = OrderBy.values.toNameMap();
+}
+
 extension _XString on String {
   Accuracy toAccuracy() => _XAccuracy._valueByName[this];
   Frequency toFrequency() => _XFrequency._valueByName[this];
   Aggregate toAggregate() => _XAggregate._valueByName[this];
+  OrderBy toOrderBy() => _XOrderBy._valueByName[this];
 }
 
 class RequestException extends HttpException {

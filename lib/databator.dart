@@ -161,7 +161,7 @@ class Databator implements SensorInfoSource {
   @override
   List<SensorEvent> getSensorEvents({Accuracy accuracy = Accuracy.min,
     Frequency frequency = Frequency.min, Aggregate aggregate = Aggregate.avg,
-    List<int> sensorIds, DateTime from, DateTime to, String orderBy, bool descending,
+    List<int> sensorIds, DateTime from, DateTime to, OrderBy orderBy, bool descending,
     int offset, int limit})
   {
     assert(frequency != null);
@@ -214,16 +214,15 @@ class Databator implements SensorInfoSource {
         break;
     }
 
+    final af = (aggregate ?? Aggregate.avg).columnPostfix();
     var selectFields = ['temperature', 'humidity', 'pressure', 'voltage'];
     // Order of the fields has a dependency to _readEvent.
 
     if (accuracy != Accuracy.min) {
-      final af = _aggregateFunctionNames[(aggregate ?? Aggregate.avg).index].toLowerCase();
       selectFields = selectFields.map((f) => f == 'voltage' ? f : '${f}_$af').toList();
     }
 
     if (groupSpec != null) {
-      final af = _aggregateFunctionNames[(aggregate ?? Aggregate.avg).index];
       selectFields = selectFields.map((f) => '$af($f)').toList();
     }
 
@@ -243,11 +242,14 @@ class Databator implements SensorInfoSource {
       query.write(' GROUP BY $groupSpec');
     }
 
-    const validOrderBys = {'timestamp', 'temperature', 'humidity', 'pressure', 'voltage'};
-
     if (orderBy != null) {
-      assert(validOrderBys.contains(orderBy), 'Not a valid orderBy: $orderBy');
-      query.write(' ORDER BY $orderBy');
+      var order = orderBy.toString().lastPart();
+
+      if (accuracy != Accuracy.min && orderBy != OrderBy.timestamp && orderBy != OrderBy.voltage) {
+        order += '_$af';
+      }
+
+      query.write(' ORDER BY $order');
 
       if (descending == true) {
         query.write(' DESC');
@@ -269,6 +271,10 @@ class Databator implements SensorInfoSource {
 }
 
 const _aggregateFunctionNames = ['MIN', 'AVG', 'MAX'];
+
+extension _XAggregate on Aggregate {
+  String columnPostfix() => _aggregateFunctionNames[index].toLowerCase();
+}
 
 const _createSensorTable = r'''
 CREATE TABLE sensor (

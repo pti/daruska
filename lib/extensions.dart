@@ -86,6 +86,11 @@ extension ExtraString on String {
         .map((b) => int.parse(b, radix: 16))
         .reduce((a, b) => (a << 8) | b);
   }
+
+  String lastPart({Pattern separator = '.'}) {
+    final lastSeparator = lastIndexOf(separator);
+    return lastSeparator == -1 ? this : substring(lastSeparator + 1);
+  }
 }
 
 extension ExtraStream on Stream {
@@ -138,10 +143,5 @@ extension ExtraStream on Stream {
 
 extension ExtraList<T> on List<T> {
 
-  Map<String, T> toNameMap() => Map.fromEntries(map((value) {
-    final str = value.toString();
-    final lastDot = str.lastIndexOf('.');
-    final name = lastDot == -1 ? str : str.substring(lastDot + 1);
-    return MapEntry(name, value);
-  }));
+  Map<String, T> toNameMap() => Map.fromEntries(map((v) => MapEntry(v.toString().lastPart(), v)));
 }

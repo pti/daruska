@@ -94,7 +94,7 @@ List<Collector> _setupCollectors(Databator db, Settings settings, DataSource src
   }
 
   final hourStart = DateTime.now().truncate(DateTimeComponent.hour);
-  final eventsSinceHourStart = db.getSensorEvents(orderBy: 'timestamp', from: hourStart);
+  final eventsSinceHourStart = db.getSensorEvents(orderBy: OrderBy.timestamp, from: hourStart);
   final collector1h = Collector(eventsSinceHourStart, src.eventStream);
   final collectStream1h = ExtraStream
       .every(DateTimeComponent.hour)
@@ -103,7 +103,7 @@ List<Collector> _setupCollectors(Databator db, Settings settings, DataSource src
   collectors.add(collector1h);
 
   final dayStart = DateTime.now().truncate(DateTimeComponent.day);
-  final eventsSinceDayStart = db.getSensorEvents(orderBy: 'timestamp', from: dayStart);
+  final eventsSinceDayStart = db.getSensorEvents(orderBy: OrderBy.timestamp, from: dayStart);
   final collector1d = Collector(eventsSinceDayStart, src.eventStream);
   final collectStream1d = ExtraStream
       .every(DateTimeComponent.day)
