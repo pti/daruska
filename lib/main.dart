@@ -116,16 +116,23 @@ List<Collector> _setupCollectors(Databator db, Settings settings, DataSource src
   return collectors;
 }
 
-void _setupLogger(Level logLevel) {
+void _setupLogger(Level logLevel, {bool showTimestamp = false}) {
   Logger.root.level = logLevel;
   Logger.root.onRecord.listen((rec) {
     final err = rec.error;
-
-    if (err == null) {
-      print('${rec.time} ${rec.loggerName.padRight(6, ' ')} ${rec.level.name.padRight(7, ' ')} ${rec.message}');
-    } else {
-      print('${rec.time} ${rec.loggerName.padRight(6, ' ')} ${rec.level.name.padRight(7, ' ')} ${rec.message}: $err');
+    final tmp = StringBuffer();
+    
+    if (showTimestamp) {
+      tmp.write('${rec.time} ');
     }
+
+    tmp.write('${rec.loggerName.padRight(6, ' ')} ${rec.level.name.padRight(7, ' ')} ${rec.message}');
+
+    if (err != null) {
+      tmp.write(': $err');
+    }
+
+    print(tmp.toString());
 
     final st = (err != null && err is Error) ? err.stackTrace : rec.stackTrace;
     if (st != null) print(st);

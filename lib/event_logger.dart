@@ -7,7 +7,7 @@ import 'extensions.dart';
 
 class EventLogger {
 
-  static const _level = Level.FINE;
+  static const _level = Level.FINEST;
   final _log = Logger('log');
   StreamSubscription<SensorEvent> _subscription;
 
