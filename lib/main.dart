@@ -23,7 +23,6 @@ void main(List<String> args) async {
 
   final src = DataSource();
   final logger = EventLogger(src.eventStream);
-  final latest = _LatestEventsCollector(src.eventStream);
 
   final db = Databator();
 
@@ -32,6 +31,7 @@ void main(List<String> args) async {
     db.vacuum();
   }
 
+  final latest = _LatestEventsCollector(src.eventStream, db.getLatestEvents());
   final collectors = _setupCollectors(db, settings, src);
 
   if (collectors.isEmpty) {
@@ -144,7 +144,8 @@ class _LatestEventsCollector implements LatestEventsSource {
   final _latestBySensorId = <int, SensorEvent>{};
   StreamSubscription<SensorEvent> _eventSubscription;
 
-  _LatestEventsCollector(Stream<SensorEvent> eventStream) {
+  _LatestEventsCollector(Stream<SensorEvent> eventStream, Iterable<SensorEvent> latestEvents) {
+    latestEvents.forEach((event) => _latestBySensorId[event.sensorId] = event);
 
     _eventSubscription = eventStream.listen((event) {
       _latestBySensorId[event.sensorId] = event;

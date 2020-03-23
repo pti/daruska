@@ -35,6 +35,7 @@ class Databator implements SensorInfoSource {
   PreparedStatement _insertMinStatement;
   PreparedStatement _insert1hStatement;
   PreparedStatement _insert1dStatement;
+  PreparedStatement _latestStatement;
   StreamSubscription _eventSubscription;
   var _sensorInfos = <int, SensorInfo>{};
 
@@ -56,6 +57,7 @@ class Databator implements SensorInfoSource {
     _insertMinStatement = _db.prepare(_insertMinEvent);
     _insert1hStatement = _db.prepare(_insert1hEvent);
     _insert1dStatement = _db.prepare(_insert1dEvent);
+    _latestStatement = _db.prepare('SELECT sensor_id, max(timestamp), temperature, humidity, pressure, voltage FROM event GROUP BY sensor_id');
   }
 
   void setStream(Stream<CollectEvent> collectStream) {
@@ -108,7 +110,7 @@ class Databator implements SensorInfoSource {
   Future<void> dispose() async {
     await _eventSubscription?.cancel();
     _eventSubscription = null;
-    [_insertMinStatement, _insert1hStatement, _insert1dStatement].forEach((s) => s.close());
+    [_insertMinStatement, _insert1hStatement, _insert1dStatement, _latestStatement].forEach((s) => s.close());
     _db?.close();
     _db = null;
   }
@@ -158,6 +160,11 @@ class Databator implements SensorInfoSource {
     return _sensorInfos[sensorId];
   }
 
+  Iterable<SensorEvent> getLatestEvents() {
+    return _latestStatement.select()
+      .map((row) => _readEvent(row, _secondsSinceEpochToDateTime));
+  }
+
   @override
   List<SensorEvent> getSensorEvents({Accuracy accuracy = Accuracy.min,
     Frequency frequency = Frequency.min, Aggregate aggregate = Aggregate.avg,
@@ -170,7 +177,7 @@ class Databator implements SensorInfoSource {
 
     _log.finest('acc=$accuracy freq=$frequency agg=$aggregate sids=$sensorIds from=$from to=$to oby=$orderBy desc=$descending off=$offset lim=$limit');
 
-    var timeConverter = (value) => DateTime.fromMillisecondsSinceEpoch(value * 1000);
+    var timeConverter = _secondsSinceEpochToDateTime;
     String groupSpec;
     var selectA = 'sensor_id, timestamp';
     var tableName;
@@ -210,7 +217,6 @@ class Databator implements SensorInfoSource {
 
       case Frequency.min:
       default:
-        timeConverter = (value) => DateTime.fromMillisecondsSinceEpoch(value * 1000);
         break;
     }
 
@@ -262,8 +268,16 @@ class Databator implements SensorInfoSource {
     }
 
     _log.finer('get events: $query');
-    final result = _db.prepare(query.toString()).select();
-    return result.map((row) => _readEvent(row, timeConverter)).toList(growable: false);
+    PreparedStatement ps;
+
+    try {
+      ps = _db.prepare(query.toString());
+      final result = ps.select();
+      return result.map((row) => _readEvent(row, timeConverter)).toList(growable: false);
+
+    } finally {
+      ps?.close();
+    }
   }
 
   @override
@@ -357,10 +371,10 @@ SensorEvent _readEvent(Row row, _TimeConverter timeConverter) {
       row.columnAt(0),
       timeConverter(row.columnAt(1)),
       SensorData(
-        ((row.columnAt(2) * 0.005) as double)._limitPrecision(),
-        ((row.columnAt(3) * 0.0025) as double)._limitPrecision(),
+        ((row.columnAt(2) * 0.005) as double).limitPrecision(),
+        ((row.columnAt(3) * 0.0025) as double).limitPrecision(),
         (row.columnAt(4) + 50000) / 100,
-        ((row.columnAt(5) * 0.001) as double)._limitPrecision(),
+        ((row.columnAt(5) * 0.001) as double).limitPrecision(),
       )
   );
 }
@@ -436,5 +450,6 @@ extension on double {
   int _toDbHumidity() => (this * 400).round();
   int _toDbPressure() => ((this * 100) - 50000).round();
   int _toDbVoltage() => (this * 1000).round();
-  double _limitPrecision() => (this * 100.0).round() / 100.0;
 }
+
+DateTime _secondsSinceEpochToDateTime(dynamic value) => DateTime.fromMillisecondsSinceEpoch(value * 1000);

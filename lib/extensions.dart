@@ -79,6 +79,10 @@ extension ExtraInt on int {
   }
 }
 
+extension ExtraDouble on double {
+  double limitPrecision({double accuracy = 100.0}) => (this * accuracy).round() / accuracy;
+}
+
 extension ExtraString on String {
 
   int parseSensorId() {
