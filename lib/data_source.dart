@@ -12,9 +12,9 @@ import 'data.dart';
 import 'extensions.dart';
 import 'ruuvi_parser.dart';
 
-final _log = Logger('src');
-
 class DataSource implements SensorEventSource {
+
+  final _log = Logger('src');
 
   static const _ignoreDuplicates = true;
 
@@ -26,9 +26,8 @@ class DataSource implements SensorEventSource {
   final _realtimeSubscribers = <int>{};
   bool _disposed = false;
   MonitoringConfiguration _cfg;
-  Process _process;
+  _MonitoringProcess _process;
   StreamSubscription<Object> _inactivitySubscription;
-  StreamSubscription<String> _stdOutSubscription;
   Timer _intervaller;
   Timer _timeouter;
 
@@ -37,8 +36,7 @@ class DataSource implements SensorEventSource {
   void dispose() {
     _disposed = true;
 
-    _stdOutSubscription?.cancel();
-    _stdOutSubscription = null;
+    _process?.dispose();
     _intervaller?.cancel();
     _intervaller = null;
     _timeouter?.cancel();
@@ -93,8 +91,9 @@ class DataSource implements SensorEventSource {
     _intervaller?.cancel();
     _intervaller = null;
 
-    _log.finer('start monitoring (interval=${_cfg.interval.inSeconds}s, timeout=${_cfg.timeout.inSeconds}s, devices=${_cfg.sensorIds.map((sid) => sid.toMacString()).join(', ')})');
-    _process = await Process.start(_cfg.command.first, _cfg.command.sublist(1));
+    _process = _MonitoringProcess();
+    await _process.start(_cfg, _onProcessEnded, _handleLine);
+    _log.finer('started monitoring (pid=${_process.pid}, interval=${_cfg.interval.inSeconds}s, timeout=${_cfg.timeout.inSeconds}s, devices=${_cfg.sensorIds.map((sid) => sid.toMacString()).join(', ')})');
 
     _latestBySensorId.clear();
 
@@ -104,31 +103,6 @@ class DataSource implements SensorEventSource {
         _stopMonitoring();
       });
     }
-
-    _stdOutSubscription = _process.stdout
-        .map((chars) => String.fromCharCodes(chars))
-        .map((str) => str.split('\n'))
-        .expand((line) => line)
-        .listen(_handleLine);
-
-    void onProcessEnded() {
-
-      if (_monitorContinuously) {
-        _restartMonitoring();
-      } else {
-        _stopMonitoring();
-      }
-    }
-
-    _stdOutSubscription.onError((err) {
-      _log.severe('process error', err);
-      onProcessEnded();
-    });
-
-    _stdOutSubscription.onDone(() {
-      _log.fine('process done');
-      onProcessEnded();
-    });
 
     if (_cfg.inactivityTimeout != null && _monitorContinuously) {
       _inactivitySubscription = _inactivityController.stream
@@ -147,6 +121,15 @@ class DataSource implements SensorEventSource {
     return _startMonitoring();
   }
 
+  void _onProcessEnded() {
+
+    if (_monitorContinuously) {
+      _restartMonitoring();
+    } else {
+      _stopMonitoring();
+    }
+  }
+
   void _stopMonitoring() {
     if (!_isMonitoring) return;
 
@@ -158,10 +141,7 @@ class DataSource implements SensorEventSource {
     _inactivitySubscription?.cancel();
     _inactivitySubscription = null;
 
-    _stdOutSubscription?.cancel();
-    _stdOutSubscription = null;
-
-    _process?.kill(ProcessSignal.sigint);
+    _process?.dispose();
     _process = null;
 
     if (!_monitorContinuously && !_disposed) {
@@ -178,7 +158,10 @@ class DataSource implements SensorEventSource {
     final linePattern = RegExp(r'^([A-F0-9:]{17}) ([0-9a-f]+)$');
     final match = linePattern.firstMatch(line);
 
-    if (match == null) return;
+    if (match == null) {
+     _log.finer('ignore nonmatching line: $line');
+      return;
+    }
 
     _inactivityController.add(Object());
 
@@ -269,5 +252,87 @@ class MonitoringConfiguration {
       inactivityTimeout: inactivityTimeout ?? this.inactivityTimeout,
       useActive: useActive ?? this.useActive
     );
+  }
+}
+
+extension on Stream<List<int>> {
+  Stream<String> mapCharCodesToLines() {
+    return map((chars) => String.fromCharCodes(chars))
+        .map((str) => str.split('\n'))
+        .expand((line) => line);
+  }
+}
+
+class _MonitoringProcess {
+
+  final _log = Logger('proc');
+
+  Process _process;
+  int _pid;
+  StreamSubscription<String> _stdOutSubscription;
+  StreamSubscription<String> _stdErrSubscription;
+
+  int get pid => _pid;
+
+  void start(MonitoringConfiguration cfg, void Function() onProcessEnded, void Function(String line) onLine) async {
+    _process = await Process.start(cfg.command.first, cfg.command.sublist(1));
+    _pid = _process.pid;
+
+    _stdErrSubscription = _process.stderr
+        .mapCharCodesToLines()
+        .listen(
+          (line) {
+            _log.warning('[$_pid] stderr: $line');
+          },
+          onError: (err) {
+            _log.severe('[$_pid] stderr error', err);
+            onProcessEnded();
+          },
+          onDone: () {
+            _log.finer('[$_pid] stderr done');
+            onProcessEnded();
+          }
+        );
+
+    _stdOutSubscription = _process.stdout
+        .mapCharCodesToLines()
+        .listen(
+          onLine,
+          onError: (err) {
+            _log.severe('[$_pid] stdout error', err);
+            onProcessEnded();
+          },
+          onDone: () {
+            _log.finer('[$_pid] stdout done');
+            onProcessEnded();
+          }
+        );
+  }
+
+  Future<void> dispose({int retriesLeft = 3}) async {
+    if (_process == null) return;
+
+    final delivered = _process?.kill(ProcessSignal.sigint);
+    if (!delivered) _log.fine('[$_pid] interrupt signal was not delivered');
+
+    await _stdErrSubscription?.cancel();
+    _stdErrSubscription = null;
+
+    await _stdOutSubscription?.cancel();
+    _stdOutSubscription = null;
+
+    final exitCode = await _process.exitCode.timeout(Duration(seconds: 5), onTimeout: () => -999);
+
+    if (exitCode == -999 && retriesLeft > 0) {
+      // Sometimes the process doesn't exit after the first kill() and it remains alive until
+      // killed again. Prolly the problem is in blepp_scan and how it checks interruptions, but
+      // couldn't figure it out so retry a few times (2nd try often seems to be enough).
+      _log.fine('[$_pid] process did not exit - retriesLeft=$retriesLeft');
+      return dispose(retriesLeft: retriesLeft - 1);
+
+    } else {
+      if (exitCode != 0) _log.warning('[$_pid] exitCode=$exitCode');
+      _process = null;
+    }
   }
 }
