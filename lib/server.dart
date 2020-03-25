@@ -276,6 +276,7 @@ class Server {
 extension on HttpResponse {
 
   void writeJson(dynamic content) {
+    headers.contentType = ContentType.json;
 
     if (content is Map) {
       content.removeWhere((k, v) => v == null);
