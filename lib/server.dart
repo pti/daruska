@@ -184,7 +184,7 @@ class Server {
     await req.response.sendJson(events.map(_toJsonWithSensorName).toList(growable: false));
   }
 
-  List<SensorEvent> _listEvents(HttpRequest req) {
+  List<SensorEvent> _listEvents(HttpRequest req, [Aggregate aggregate]) {
     final qp = req.uri.queryParameters;
 
     final ids = qp['sensors']
@@ -197,7 +197,7 @@ class Server {
       sensorIds: ids,
       accuracy: qp['accuracy']?.toAccuracy() ?? Accuracy.min,
       frequency: qp['frequency']?.toFrequency() ?? Frequency.min,
-      aggregate: qp['aggregate']?.toAggregate() ?? Aggregate.avg,
+      aggregate: aggregate ?? qp['aggregate']?.toAggregate() ?? Aggregate.avg,
       from: _parseTimestamp(qp['from']),
       to: _parseTimestamp(qp['to']),
       orderBy: qp['sort']?.toOrderBy(),
@@ -210,16 +210,26 @@ class Server {
   /// Responds with a list with an object per sensor. Each object lists the requested
   /// fields in separate arrays (that only contain the field specific values).
   Future<void> _getDataPoints(HttpRequest req, Match pathMatch) async {
-    final events = _listEvents(req);
-
-    final includeFields = req.uri.queryParameters['fields']
+    final aggregates = req.uri.queryParameters['aggregate']
         ?.split(',')
-        ?.map((fstr) => fstr.toSensorField())
-        ?.where((sf) => sf != null)
-        ?.toSet();
-    _log.finest('include fields: $includeFields');
+        ?.map((as) => as.toAggregate())
+        ?.where((a) => a != null)
+        ?? [Aggregate.avg];
+    final dpcs = <_DataPointCollection>[];
 
-    final dpcs = _asDataPointCollections(events, infos, includeFields);
+    for (final aggr in aggregates) {
+      final events = _listEvents(req);
+
+      final includeFields = req.uri.queryParameters['fields']
+          ?.split(',')
+          ?.map((fstr) => fstr.toSensorField())
+          ?.where((sf) => sf != null)
+          ?.toSet();
+      _log.finest('include fields: $includeFields');
+
+      dpcs.addAll(_asDataPointCollections(events, infos, includeFields, aggr));
+    }
+
     await req.response.sendJson(dpcs.map((dpc) => dpc.toJson()).toList());
   }
 
@@ -341,6 +351,7 @@ class _RequestMatcher {
 /// Value arrays can contain nulls.
 class _DataPointCollection {
 
+  final Aggregate aggregate;
   final int sensorId;
   final String sensorName;
   final List<double> temperature = [];
@@ -349,7 +360,7 @@ class _DataPointCollection {
   final List<double> voltage = [];
   final List<DateTime> timestamps = [];
 
-  _DataPointCollection(this.sensorId, this.sensorName);
+  _DataPointCollection(this.sensorId, this.sensorName, this.aggregate);
 
   void add(int includeFieldsMask, SensorEvent event) {
     timestamps.add(event.timestamp);
@@ -375,6 +386,7 @@ class _DataPointCollection {
     return {
       'sensorId': sensorId.toMacString(separated: false),
       'sensorName': sensorName,
+      'aggregate': aggregate.toString().lastPart(),
       'timestamps': timestamps.map((ts) => ts.secondsSinceEpoch).toList(growable: false),
       'temperature': temperature,
       'humidity': humidity,
@@ -384,15 +396,18 @@ class _DataPointCollection {
   }
 }
 
-List<_DataPointCollection> _asDataPointCollections(List<SensorEvent> events, SensorInfoSource infos, Set<SensorField> includeFields) {
+Iterable<_DataPointCollection> _asDataPointCollections(List<SensorEvent> events, SensorInfoSource infos,
+    Set<SensorField> includeFields, Aggregate aggregate)
+{
   final collections = <int, _DataPointCollection>{};
   final includeMask = includeFields?._asIncludeMask();
 
   for (final event in events) {
-    (collections[event.sensorId] ??= _DataPointCollection(event.sensorId, infos.getSensorInfo(event.sensorId)?.name)).add(includeMask, event);
+    (collections[event.sensorId] ??= _DataPointCollection(event.sensorId, infos.getSensorInfo(event.sensorId)?.name, aggregate))
+        .add(includeMask, event);
   }
 
-  return collections.values.toList(growable: false);
+  return collections.values;
 }
 
 extension _XSensorFieldSet on Set<SensorField> {
