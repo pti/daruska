@@ -218,7 +218,7 @@ class Server {
     final dpcs = <_DataPointCollection>[];
 
     for (final aggr in aggregates) {
-      final events = _listEvents(req);
+      final events = _listEvents(req, aggr);
 
       final includeFields = req.uri.queryParameters['fields']
           ?.split(',')
