@@ -115,7 +115,7 @@ class Server {
 
   Future<void> _saveSensor(HttpRequest req, Match pathMatch) async {
 
-    if (req.headers.contentType != ContentType.json) {
+    if (req.headers.contentType.mimeType != ContentType.json.mimeType) {
       throw RequestException(HttpStatus.unsupportedMediaType, 'invalid_content_type');
     }
 
@@ -138,7 +138,7 @@ class Server {
       throw RequestException(HttpStatus.badRequest, 'invalid_info');
     }
 
-    if (name != null && (!(name is String) || _validNamePattern.hasMatch(name))) {
+    if (name != null && (!(name is String) || !_validNamePattern.hasMatch(name))) {
       throw RequestException(HttpStatus.badRequest, 'invalid_name');
     }
 
@@ -147,6 +147,8 @@ class Server {
     }
 
     infos.saveSensorInfo(SensorInfo(sensorId, name ?? old.name, active ?? old.active));
+
+    await req.response.sendStatus(HttpStatus.ok);
   }
 
   Future<void> _handleStartMonitoring(HttpRequest req, Match pathMatch) async {
@@ -287,6 +289,7 @@ extension on HttpResponse {
 
   void writeJson(dynamic content) {
     headers.contentType = ContentType.json;
+    headers.add('Access-Control-Allow-Origin', '*');
 
     if (content is Map) {
       content.removeWhere((k, v) => v == null);
@@ -304,6 +307,11 @@ extension on HttpResponse {
   Future<void> sendJson(dynamic json, {int status = HttpStatus.ok}) async {
     statusCode = status;
     writeJson(json);
+    return close();
+  }
+
+  Future<void> sendStatus(int status) async {
+    statusCode = status;
     return close();
   }
 }
